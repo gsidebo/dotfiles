@@ -1,0 +1,299 @@
+alias rcme='vim ~/.zshrcme && source ~/.zshrcme'
+alias rcmeload='source ~/.zshrcme'
+
+PATH="/Library/Frameworks/Python.framework/Versions/2.7/bin:/Applications/Postgres.app/Contents/Versions/9.5/bin:${PATH}"
+export PATH
+export EDITOR="/usr/local/bin/mate -w"
+export DEVPATH='~/dev'
+export SCREENSHOTS='/Users/gavin/Screenshots/'
+export CODESNIP='/Users/gavin/Code Snippets/'
+export RC='~/.zshrc'
+export RCME='~/.zshrcme'
+
+alias cdev="cd $DEVPATH"
+alias cdmic="cd $DEVPATH/micromasters"
+alias cdm=cdmic
+alias cdedx="cd $DEVPATH/edx_devstack"
+alias cdnb="cd $DEVPATH/notebooks"
+
+alias fixenter="stty sane"
+makegif() {
+  palette="/tmp/palette.png"
+  filters="fps=10,scale=600:-1:flags=bicubic"
+  if (( $# < 2 )); then
+    input="$1.mov"
+	output="$1.gif"
+  else
+    input="$1"
+	output="$2"
+  fi
+  ffmpeg -v warning -i "$input" -vf "$filters,palettegen" -y $palette
+  ffmpeg -v warning -i "$input" -i $palette -lavfi "$filters [x]; [x][1:v] paletteuse" -y "$output"
+}
+snippet() {
+  cp "$1" "$CODESNIP"
+}
+urlencode() {
+  python -c "import urllib, sys; print urllib.quote(sys.argv[1])" $1
+}
+alias vhalt='vagrant halt'
+
+export VIRTUALENVWRAP_SH_PATH="/Library/Frameworks/Python.framework/Versions/2.7/bin/virtualenvwrapper.sh"
+export WORKON_HOME=$HOME/.virtualenvs
+export PROJECT_HOME=$DEVPATH
+source "$VIRTUALENVWRAP_SH_PATH"
+venv() {
+  cwd=$(echo "${PWD##*/}")
+  if [ -d "$WORKON_HOME/$cwd" ]; then
+    workon "$cwd"
+  else
+    echo "'$cwd' is not an existing virtualenv"
+  fi
+}
+alias venvoff='deactivate'
+venvcreate() {
+  cwd=$(echo "${PWD##*/}")
+  if [ -d "$WORKON_HOME/$cwd" ]; then
+    echo "'$cwd' virtualenv already exists"
+  else
+    mkvirtualenv "$cwd" $@
+    workon "$cwd"
+  fi
+}
+venvdelete() {
+  venvoff
+  cwd=$(echo "${PWD##*/}")
+  if [ -d "$WORKON_HOME/$cwd" ]; then
+    rm -rf "$WORKON_HOME/$cwd"
+  fi
+}
+
+alias pynbhere='jupyter notebook'
+alias pynb="pynbhere --notebook-dir=$DEVPATH/notebooks"
+
+# Git magic
+export GITHUB_API_URL="https://api.github.com"
+export GIT_AUTHOR_LABEL_NAME="Waiting on Author"
+export GIT_REVIEW_LABEL_NAME="Needs Review"
+gsetapivalues() {
+  curbranch=$(gcurbranch)
+  remote_tail=$(git remote show origin -n | grep 'Push' | grep -Eo '(\w+)/(\w+)\.git$')
+  github_owner=$(echo "$remote_tail" | grep -Eo '^\w+')
+  github_repo=$(echo "$remote_tail" | perl -nle 'print $& if m{(?<=/)\w+}')
+}
+gh_api_call() {
+  if (( $# < 1 )); then
+    echo "Need >= 1 param"
+    return
+  else
+    api_url_stub="$1"; shift
+  fi
+  full_url="$GITHUB_API_URL/$api_url_stub"
+  # echo "$full_url"
+  curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$full_url" $@
+}
+gh_repos_api_call() {
+  if (( $# < 1 )); then
+    echo "Need >= 1 param"
+    return
+  else
+    api_url_stub="$1"; shift
+  fi
+  gsetapivalues
+  gh_api_call "repos/$github_owner/$github_repo/$api_url_stub" $@
+}
+gmergetomaster() {
+  curbranch=$(gcurbranch)
+  git checkout master && git pull && git merge "$curbranch"
+  git push
+}
+gcurbranchprinfo() {
+  gsetapivalues
+  curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls?head=$github_owner:$curbranch"
+}
+getissuefrombranch() {
+  gcurbranch | grep -Eo '^[0-9]+'
+}
+gprissue() {
+  if [ -z "$1" ]; then
+    echo "Need PR issue # as param"
+    return
+  fi
+  gh_repos_api_call "pulls/$1" | jq '.["body"]' | grep -Eo "[closes|Closes|fixes|Fixes]\s+\#\d+" | grep -Eo "\d+$"
+}
+gopenpr() {
+  gcurbranchprinfo | jq -r '.[0] | .["_links"]["html"]["href"]' | xargs open
+}
+gopenissue() {
+  if [ -z "$1" ]; then
+    # attempt to match numbers at the beginning of the branch name, which should indicate issue #
+    issue=$(getissuefrombranch)
+  else
+    issue="$1"
+  fi
+  if [ -z "$issue" ]; then
+    echo "No issue # specified"
+  else
+    gsetapivalues
+    curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/issues/$issue" | jq -r '.["html_url"]' | xargs open
+  fi
+}
+gopenprissue() {
+  if [ -z "$1" ]; then
+    pr_issue_number=$(gcurbranchprinfo | jq '.[0]["number"]')
+  else
+    pr_issue_number=$1
+  fi
+  gopenissue $(gprissue "$pr_issue_number")
+}
+gchprbranch() {
+  if [ -z "$1" ]; then
+    echo "Need PR issue # as param"
+    return
+  else
+    pr_issue="$1"
+  fi
+  gsetapivalues
+  branch_name=$(curl -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls/$pr_issue" | jq -r '.["head"]["ref"]')
+  git fetch && git checkout "$branch_name"
+}
+gprlabelset() {
+  gsetapivalues
+  if [ -z "$1" ]; then
+    echo "Need label name as param"
+    return
+  else
+    label_to_add="$1"
+  fi
+  if [ -z "$2" ]; then
+    issue_url=$(curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls?head=$github_owner:$curbranch" | jq -r '.[0]["issue_url"]')
+  else
+    issue_url="$GITHUB_API_URL/repos/$github_owner/$github_repo/issues/$2"
+  fi
+  issue_labels_url="$issue_url/labels"
+  curl -s -X PUT -u "$GIT_USERNAME:$GIT_TOKEN" "$issue_labels_url" -H "Content-Type: application/json" -d '["'"$label_to_add"'"]'
+}
+gprlabelreview() {
+  gprlabelset "$GIT_REVIEW_LABEL_NAME" $1
+}
+gprlabelwaiting() {
+  gprlabelset "$GIT_AUTHOR_LABEL_NAME" $1
+}
+gsquash() {
+  curbranch=$(gcurbranch)
+  branch_parent_commit=$(git merge-base $curbranch master)
+  if [ -z "$curbranch" ]; then
+    echo "No current branch obtained. No squashy."
+  elif [[ "$curbranch" == "master" ]]; then
+    echo "You are currently on master. No squashy."
+  elif [ -z "$branch_parent_commit" ]; then
+    echo "No branch parent commit found. No squashy."
+  else
+    commitmsg=''
+    if (( $# < 1 )); then
+      prtitle=$(gcurbranchprinfo | jq -r '.[0]["title"]')
+      read -q "REPLY?No message specified. Use the following?: [$prtitle]"
+	  echo
+	  case "$REPLY" in
+        y|Y ) commitmsg="$prtitle";;
+        * ) echo "Need to specify a commit message. No squashy." && return;;
+      esac
+    fi
+	if [ -z "$commitmsg" ]; then
+	  commitmsg="$(echo $@)"
+	fi
+    git reset --soft "$branch_parent_commit"
+    git commit -am "$commitmsg"
+    #git push -f
+  fi
+}
+gtagrelease() {
+  if [ -z "$1" ]; then
+    echo "Need tag as param"
+    return
+  else
+    # coerce to semantic version - eliminates 'v', etc.
+	tag=$(echo "$1" | grep -Eo '\d+\.\d+\.\d+')
+	if [ -z "$tag" ]; then
+	  echo "Tag ($1) is not a valid semantic version"
+	  return
+	fi
+  fi
+  git tag -a -m "Release $tag" "v$tag"
+  # git push --follow-tags
+}
+alias grebmaster='git rebase origin/master'
+alias grebabort='git rebase --abort'
+alias grebcontinue='git rebase --continue'
+
+gmyissues() {
+	gsetapivalues && gh_api_call "search/issues?q=assignee:$GIT_USERNAME+repo:$github_owner/$github_repo+state:open" | jq '.["items"][] | {number: .["number"], title: .["title"]} + if has("pull_request") then {pull_request_url: .["pull_request"]["url"]} else {} end'
+}
+
+# Docker functions and aliases
+alias docksshc='docker-machine ssh'
+alias docksshm='docker-compose run web bash'
+alias dockstop='docker-machine stop'
+alias dockrestart='docker-machine restart'
+alias dockbuild='docker-compose build'
+alias docknpm='docker-compose run watch npm install'
+alias docknpmrebuild='docker-compose run web bash -c "rm -rf ./node_modules && rm -rf ./staticfiles" && docknpm'
+alias docklintjs='docker-compose run watch npm run-script lint'
+alias docktestjs='docker-compose run watch npm test'
+alias docklintpy='docker-compose run web pylint'
+alias docktestpy='docker-compose run web tox'
+alias dockdbport="docker-compose ps | grep '_db' | grep -Eo '[^ ]+\s+$' | grep -Eo ':(\d+)' | cut -c 2-"
+
+# Project-specific commands
+# MM
+export MM_MACHINE_NAME='mm'
+denv() { eval "$(docker-machine env $1)" }
+alias mmenv="denv $MM_MACHINE_NAME"
+alias mmsetup='docker-machine start '"$MM_MACHINE_NAME"'; mmenv'
+alias mmstart='mmenv && docker-compose up'
+alias mmstartdb='mmenv && docker-compose up db'
+alias mmstartweb='mmenv && docker-compose up web'
+alias mmmakemigration='mmenv && docker-compose run --service-ports web python3 ./manage.py makemigrations'
+alias mmmigrate='mmenv && docker-compose run --service-ports web python3 ./manage.py migrate'
+alias mmip='docker-machine ip '"$MM_MACHINE_NAME"
+alias mmstartserver='mmenv && docker-compose run --service-ports web ./manage.py runserver 0.0.0.0:8079'
+alias mmwebpack='./webpack_dev_server.sh'
+alias mmtestall='./test_suite.sh'
+alias mmshell='docker-compose run web ./manage.py shell'
+alias mmindex='docker-compose run web ./manage.py recreate_index'
+mmsearchindex() {
+  if [ ! -z $1 ]; then
+    esquery="?q=$1"
+  else
+    esquery=""
+  fi
+  docker-compose run web curl "http://elastic:9200/micromasters/_search?$esquery" | jq '.'
+}
+mmfullstaticbuild() {
+  debug=$(cat ./docker-compose.yml | grep -Eo "DEBUG: 'True'")
+  if [ ! -z "$debug" ]; then
+    git apply $CODESNIP/patches/docker_debug_false.patch
+  fi
+  node node_modules/webpack/bin/webpack.js --config webpack.config.prod.js --bail &&
+    docker-compose run web ./manage.py collectstatic --no-input &&
+    echo "\nRESTART THE MM SERVER"
+}
+mmcleanstaticbuild() {
+  notdebug=$(cat ./docker-compose.yml | grep -Eo "DEBUG: 'False'")
+  if [ ! -z "$notdebug" ]; then
+    git checkout -- ./docker-compose.yml
+  fi
+  docker-compose run web bash -c "rm -rf ./staticfiles"
+}
+mmdbconnect() {
+  mmenv && psql -h $(mmip) -p $(dockdbport) -U postgres
+}
+mmdbrun() {
+  mmenv && psql -h $(mmip) -p $(dockdbport) -U postgres -c $@
+}
+
+# Random startup
+alias edxstart='cd ~/dev/edx_devstack && vup && vssh'
+
+# Pythonz setup
+[[ -s $HOME/.pythonz/etc/bashrc ]] && source $HOME/.pythonz/etc/bashrc
