@@ -144,6 +144,19 @@ gresorigin() {
 }
 alias gstash='git stash'
 alias gstashp='git stash pop'
+gbranchfile () {
+  if [ ! -z "$2" ]; then
+    branch="$1"; shift
+  else
+    branch="master"
+  fi
+  if [ -z "$1" ]; then
+    echo "Need to specify file path"
+  else
+    file="$1"
+  fi
+  git show "$branch:$file"
+}
 
 # pip
 pipreq() {
@@ -161,9 +174,9 @@ alias vssh="vagrant ssh"
 alias vupssh="vagrant up && vagrant ssh"
 
 # Machine-specific stuff
-if [[ -s ".zshkeys" ]]; then
-  source ".zshkeys"
+if [[ -s "$HOME/dev/dotfiles/.zshkeys" ]]; then
+  source "$HOME/dev/dotfiles/.zshkeys"
 fi
-if [[ -s ".zshrcme" ]]; then
-  source ".zshrcme"
+if [[ -s "$HOME/dev/dotfiles/.zshrcme" ]]; then
+  source "$HOME/dev/dotfiles/.zshrcme"
 fi
