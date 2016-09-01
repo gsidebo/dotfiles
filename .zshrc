@@ -12,11 +12,21 @@ fi
 
 # Customize to your needs...
 
+setclobber() { 
+  setopt clobber 
+}
+setnoclobber() { 
+  setopt noclobber
+}
 setopt interactivecomments
+setnoclobber
 
-export RCFILE='~/.zshrc'
-alias rcload="source $RCFILE"
-alias rc="vim $RCFILE && source $RCFILE"
+export RCFILE="$HOME/.zshrc"
+export RCMEFILE="$DEVPATH/dotfiles/.zshrcme"
+rcload() { source $RCFILE; }
+rc() { vim $RCFILE && source $RCFILE; }
+rcme() { vim $RCMEFILE && source $RCMEFILE; }
+rcmeload() { source $RCMEFILE; }
 
 # Some pip installs require a C compiler to be aliased to "CC"
 export CC=gcc
@@ -38,6 +48,9 @@ alias edit='charm'                          # edit:
 alias f='open -a Finder ./'                 # f:            Opens current directory in MacOS Finder
 alias ~="cd ~"                              # ~:            Go Home
 alias path='echo -e ${PATH//:/\\n}'
+pwdtail() {
+  echo ${PWD##*/}
+}
 
 #   extract:  Extract most know archives with one command
 #   ---------------------------------------------------------
@@ -81,11 +94,16 @@ alias gchmaster='git checkout master && git pull'
 alias master=gchmaster
 alias gpll='git pull'
 alias gpull=gpll
+alias gfetch='git fetch'
 gcmt() {;git commit -am "$(echo $@)";}
 alias glastcmtmessage='git log -n 1 --format=format:%s'
 grecmt() {
-  lastcmtmessage=$(glastcmtmessage)
-  git reset --soft HEAD~1 && gaa && gcmt "$lastcmtmessage"
+  if [ ! -z "$1" ]; then
+  	cmtmessage="$@"
+  else
+  	cmtmessage=$(glastcmtmessage)
+  fi
+  git reset --soft HEAD~1 && gaa && gcmt "$cmtmessage"
 }
 alias gcmtundo='git reset --soft HEAD~'
 alias gpsh='git push'
@@ -117,9 +135,12 @@ gdiffmaster() {
   git diff origin/master.."$(gcurbranch)" $@
 }
 gdiffbranches() {
-  if (( $# < 2 )); then
-    echo "Need two branches as params"
+  if (( $# < 1 )); then
+    echo "Need one or two branches as params"
     return
+  elif (( $# < 2 )); then
+    branch1="$1"; shift
+    branch2=$(gcurbranch)
   else
     branch1="$1"; shift
     branch2="$1"; shift
@@ -142,8 +163,15 @@ gresorigin() {
   curbranch=$(gcurbranch)
   git reset --hard "origin/$curbranch"
 }
-alias gstash='git stash'
+gstash() {
+  if [ -z "$1" ]; then
+    git stash
+  else
+    git stash save "$@"
+  fi
+}
 alias gstashp='git stash pop'
+alias gstashshow='git stash show'
 gbranchfile () {
   if [ ! -z "$2" ]; then
     branch="$1"; shift
@@ -174,9 +202,9 @@ alias vssh="vagrant ssh"
 alias vupssh="vagrant up && vagrant ssh"
 
 # Machine-specific stuff
-if [[ -s "$HOME/dev/dotfiles/.zshkeys" ]]; then
-  source "$HOME/dev/dotfiles/.zshkeys"
+if [[ -s "$DEVPATH/dotfiles/.zshkeys" ]]; then
+  source "$DEVPATH/dotfiles/.zshkeys"
 fi
-if [[ -s "$HOME/dev/dotfiles/.zshrcme" ]]; then
-  source "$HOME/dev/dotfiles/.zshrcme"
+if [[ -s "$DEVPATH/dotfiles/.zshrcme" ]]; then
+  source "$DEVPATH/dotfiles/.zshrcme"
 fi

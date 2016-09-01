@@ -1,20 +1,17 @@
-alias rcme='vim ~/.zshrcme && source ~/.zshrcme'
-alias rcmeload='source ~/.zshrcme'
-
 PATH="/Library/Frameworks/Python.framework/Versions/2.7/bin:/Applications/Postgres.app/Contents/Versions/9.5/bin:${PATH}"
+# Remove duplicates from PATH
+PATH=$(echo "$PATH" | awk -v RS=':' -v ORS=":" '!a[$1]++' | sed 's/:$//' | tr -d '\n')
 export PATH
 export EDITOR="/usr/local/bin/mate -w"
-export DEVPATH='~/dev'
 export SCREENSHOTS='/Users/gavin/Screenshots/'
 export CODESNIP='/Users/gavin/Code Snippets/'
-export RC='~/.zshrc'
-export RCME='~/.zshrcme'
 
 alias cdev="cd $DEVPATH"
 alias cdmic="cd $DEVPATH/micromasters"
 alias cdm=cdmic
 alias cdedx="cd $DEVPATH/edx_devstack"
-alias cdnb="cd $DEVPATH/notebooks"
+export SANDBOXPATH="$DEVPATH/sandbox"
+alias cdsandbox="cd $SANDBOXPATH"
 
 alias fixenter="stty sane"
 makegif() {
@@ -43,7 +40,7 @@ export WORKON_HOME=$HOME/.virtualenvs
 export PROJECT_HOME=$DEVPATH
 source "$VIRTUALENVWRAP_SH_PATH"
 venv() {
-  cwd=$(echo "${PWD##*/}")
+  cwd=$(pwdtail)
   if [ -d "$WORKON_HOME/$cwd" ]; then
     workon "$cwd"
   else
@@ -67,9 +64,12 @@ venvdelete() {
     rm -rf "$WORKON_HOME/$cwd"
   fi
 }
+venvcurrent() {
+  echo "$VIRTUAL_ENV"
+}
 
 alias pynbhere='jupyter notebook'
-alias pynb="pynbhere --notebook-dir=$DEVPATH/notebooks"
+alias pynb="pynbhere --notebook-dir=$SANDBOXPATH"
 
 # Git magic
 export GITHUB_API_URL="https://api.github.com"
@@ -101,6 +101,14 @@ gh_repos_api_call() {
   fi
   gsetapivalues
   gh_api_call "repos/$github_owner/$github_repo/$api_url_stub" $@
+}
+gh_prs_api_call() {
+  gsetapivalues
+  api_url_stub="search/issues?q=repo:$github_owner/$github_repo+state:open+is:pr"
+  if [ ! -z "$1" ]; then
+    api_url_stub="$api_url_stub+$1"
+  fi
+  gh_api_call "$api_url_stub"
 }
 gmergetomaster() {
   curbranch=$(gcurbranch)
@@ -154,9 +162,10 @@ gchprbranch() {
     pr_issue="$1"
   fi
   gsetapivalues
-  branch_name=$(curl -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls/$pr_issue" | jq -r '.["head"]["ref"]')
+  branch_name=$(curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls/$pr_issue" | jq -r '.["head"]["ref"]')
   git fetch && git checkout "$branch_name"
 }
+alias gchpr=gchprbranch
 gprlabelset() {
   gsetapivalues
   if [ -z "$1" ]; then
@@ -179,6 +188,15 @@ gprlabelreview() {
 gprlabelwaiting() {
   gprlabelset "$GIT_AUTHOR_LABEL_NAME" $1
 }
+gmyissues() {
+  gsetapivalues && gh_api_call "search/issues?q=assignee:$GIT_USERNAME+repo:$github_owner/$github_repo+state:open" | jq '.["items"][] | {number: .["number"], title: .["title"], url: .["html_url"]} + if has("pull_request") then {is: "PULL REQUEST"} else {} end  + if (.["labels"] | any(.["name"] == "epic")) then {is: "EPIC"} else {} end'
+}
+gmyprsassigned() {
+  gh_prs_api_call "assignee:$GIT_USERNAME" | jq '.["items"][] | {number: .["number"], title: .["title"], label: [.["labels"][] | .["name"]] | join(", ")}'
+}
+gmyprscreated() {
+  gh_prs_api_call "author:$GIT_USERNAME" | jq '.["items"][] | {number: .["number"], title: .["title"], label: [.["labels"][] | .["name"]] | join(", ")}'
+}
 gsquash() {
   curbranch=$(gcurbranch)
   branch_parent_commit=$(git merge-base $curbranch master)
@@ -191,15 +209,18 @@ gsquash() {
   else
     commitmsg=''
     if (( $# < 1 )); then
-      prtitle=$(gcurbranchprinfo | jq -r '.[0]["title"]')
-      read -q "REPLY?No message specified. Use the following?: [$prtitle]"
+      proposed_title=$(gcurbranchprinfo | jq -r '.[0]["title"]')
+	  if [ -z "$proposed_title" ]; then
+	    first_branch_commit=$(git log --format=%H | tr '\n' ',' | grep -Eo "\w+,$branch_parent_commit" | grep -Eo "^[^,]+")
+		proposed_title=$(git show "$first_branch_commit" --format="%s" --no-patch)
+	  fi
+      read -q "REPLY?No message specified. Use the following? [$proposed_title]: "
 	  echo
 	  case "$REPLY" in
-        y|Y ) commitmsg="$prtitle";;
+        y|Y ) commitmsg="$proposed_title";;
         * ) echo "Need to specify a commit message. No squashy." && return;;
       esac
-    fi
-	if [ -z "$commitmsg" ]; then
+	else
 	  commitmsg="$(echo $@)"
 	fi
     git reset --soft "$branch_parent_commit"
@@ -226,35 +247,44 @@ alias grebmaster='git rebase origin/master'
 alias grebabort='git rebase --abort'
 alias grebcontinue='git rebase --continue'
 
-gmyissues() {
-	gsetapivalues && gh_api_call "search/issues?q=assignee:$GIT_USERNAME+repo:$github_owner/$github_repo+state:open" | jq '.["items"][] | {number: .["number"], title: .["title"]} + if has("pull_request") then {pull_request_url: .["pull_request"]["url"]} else {} end'
-}
 
 # Docker functions and aliases
+dockenv() { eval "$(docker-machine env $1)" }
 alias docksshc='docker-machine ssh'
 alias docksshm='docker-compose run web bash'
 alias dockstop='docker-machine stop'
 alias dockrestart='docker-machine restart'
 alias dockbuild='docker-compose build'
-alias docknpm='docker-compose run watch npm install'
-alias docknpmrebuild='docker-compose run web bash -c "rm -rf ./node_modules && rm -rf ./staticfiles" && docknpm'
-alias docklintjs='docker-compose run watch npm run-script lint'
-alias docktestjs='docker-compose run watch npm test'
-alias docklintpy='docker-compose run web pylint'
-alias docktestpy='docker-compose run web tox'
-alias dockdbport="docker-compose ps | grep '_db' | grep -Eo '[^ ]+\s+$' | grep -Eo ':(\d+)' | cut -c 2-"
 
 # Project-specific commands
 # MM
 export MM_MACHINE_NAME='mm'
-denv() { eval "$(docker-machine env $1)" }
-alias mmenv="denv $MM_MACHINE_NAME"
-alias mmsetup='docker-machine start '"$MM_MACHINE_NAME"'; mmenv'
-alias mmstart='mmenv && docker-compose up'
-alias mmstartdb='mmenv && docker-compose up db'
-alias mmstartweb='mmenv && docker-compose up web'
-alias mmmakemigration='mmenv && docker-compose run --service-ports web python3 ./manage.py makemigrations'
-alias mmmigrate='mmenv && docker-compose run --service-ports web python3 ./manage.py migrate'
+alias mmenv="dockenv $MM_MACHINE_NAME"
+alias mmstartmachine="docker-machine start $MM_MACHINE_NAME"
+alias mmsetup='mmstartmachine; mmenv'
+mm() {
+  if [ $(pwd) != "$DEVPATH/micromasters" ]; then
+    echo "Changing directory to $DEVPATH/micromasters"
+	cdm
+  fi
+  if [ $(docker-machine status $MM_MACHINE_NAME) != "Running" ]; then
+    mmstartmachine
+  fi
+  if [ "$DOCKER_MACHINE_NAME" != "$MM_MACHINE_NAME" ]; then
+    echo "Setting docker env variables"
+	mmenv
+  fi
+  if [[ $(venvcurrent) != *$(pwdtail)* ]]; then
+    echo "Setting virtualenv"
+  	venv
+  fi
+}
+alias mmstart='mm && docker-compose up'
+alias mmstartdb='mm && docker-compose up db'
+alias mmstartdbelastic='mm && docker-compose up db elastic'
+alias mmstartweb='mm && docker-compose run --service-ports web'
+alias mmmakemigration='mm && docker-compose run --service-ports web python3 ./manage.py makemigrations'
+alias mmmigrate='mm && docker-compose run --service-ports web python3 ./manage.py migrate'
 alias mmip='docker-machine ip '"$MM_MACHINE_NAME"
 alias mmstartserver='mmenv && docker-compose run --service-ports web ./manage.py runserver 0.0.0.0:8079'
 alias mmwebpack='./webpack_dev_server.sh'
@@ -270,7 +300,7 @@ mmsearchindex() {
   docker-compose run web curl "http://elastic:9200/micromasters/_search?$esquery" | jq '.'
 }
 mmfullstaticbuild() {
-  debug=$(cat ./docker-compose.yml | grep -Eo "DEBUG: 'True'")
+  local debug=$(cat ./docker-compose.yml | grep -Eo "DEBUG: 'True'")
   if [ ! -z "$debug" ]; then
     git apply $CODESNIP/patches/docker_debug_false.patch
   fi
@@ -279,21 +309,48 @@ mmfullstaticbuild() {
     echo "\nRESTART THE MM SERVER"
 }
 mmcleanstaticbuild() {
-  notdebug=$(cat ./docker-compose.yml | grep -Eo "DEBUG: 'False'")
+  local notdebug=$(cat ./docker-compose.yml | grep -Eo "DEBUG: 'False'")
   if [ ! -z "$notdebug" ]; then
     git checkout -- ./docker-compose.yml
   fi
   docker-compose run web bash -c "rm -rf ./staticfiles"
 }
 mmdbconnect() {
-  mmenv && psql -h $(mmip) -p $(dockdbport) -U postgres
+  mmenv && psql -h $(mmip) -p $(mmdbport) -U postgres
 }
 mmdbrun() {
-  mmenv && psql -h $(mmip) -p $(dockdbport) -U postgres -c $@
+  mmenv && psql -h $(mmip) -p $(mmdbport) -U postgres -c $@
 }
+mmtestcfgminimal() {
+  /bin/cp -f pytest_minimal.ini pytest.ini
+}
+mmtestcfgrevert() {
+  git checkout origin/master pytest.ini
+}
+alias mmtest='./test_suite.sh'
+alias mmlintjs='docker-compose run watch npm run-script lint'
+alias mmtestjs='docker-compose run watch npm test'
+alias mmflow='docker-compose run watch npm run-script flow'
+alias mmlintpy='docker-compose run web pylint'
+alias mmtestpy='docker-compose run web tox'
+mmtestpymin() {
+  mmtestcfgminimal && docker-compose run web tox $@;
+  mmtestcfgrevert
+}
+alias mmtoxenv='. .tox/py35/bin/activate'
+alias mmdjangodebug='cp $CODESNIP/settingsfiles/.env_django_debug ~/dev/micromasters/.env'
+alias mmdjangowarning='cp $CODESNIP/settingsfiles/.env_django_warning ~/dev/micromasters/.env'
+alias mmgetdbport="docker-compose ps | grep '_db' | grep -Eo '[^ ]+\s+$' | grep -Eo ':(\d+)' | cut -c 2-"
+mmdbport() {
+	export MM_DB_PORT=$(mmgetdbport)
+	echo "$MM_DB_PORT"
+}
+alias mmnb='mm && mmdbport && jupyter notebook micromasters.ipynb --log-level=ERROR' # --notebook-dir=".ipynb"
+
 
 # Random startup
 alias edxstart='cd ~/dev/edx_devstack && vup && vssh'
+alias edxstartfresh='cd ~/dev/edx_devstack && vhalt && vup && vssh'
 
 # Pythonz setup
 [[ -s $HOME/.pythonz/etc/bashrc ]] && source $HOME/.pythonz/etc/bashrc
