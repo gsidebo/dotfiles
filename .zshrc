@@ -185,6 +185,27 @@ gbranchfile () {
   fi
   git show "$branch:$file"
 }
+gchkeepfile() {
+  if (( $# < 2 )); then
+    echo "Need 'ours/theirs' and file as params"; return
+  else
+    use="--$1"
+	echo "Using '$1' for $2 (branch: $(gcurbranch))"
+  fi
+  git checkout "$use" "$2"
+}
+gchours() {
+  if [ -z "$1" ]; then
+    echo "Need file as param"; return
+  fi
+  gchkeepfile "ours" "$1"
+}
+gchtheirs() {
+  if [ -z "$1" ]; then
+    echo "Need file as param"; return
+  fi
+  git checkout "theirs" "$1"
+}
 
 # pip
 pipreq() {

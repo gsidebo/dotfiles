@@ -24,6 +24,14 @@ makegif() {
     input="$1"
 	output="$2"
   fi
+  if [ ! -f "$input" ] ; then
+    input_temp="/Users/gavin/Screenshots/$input"
+	output_temp="/Users/gavin/Screenshots/$output"
+	if [ -f "$input_temp" ]; then
+	  input="$input_temp"
+	  output="$output_temp"
+	fi
+  fi
   ffmpeg -v warning -i "$input" -vf "$filters,palettegen" -y $palette
   ffmpeg -v warning -i "$input" -i $palette -lavfi "$filters [x]; [x][1:v] paletteuse" -y "$output"
 }
@@ -110,6 +118,28 @@ gh_prs_api_call() {
   fi
   gh_api_call "$api_url_stub"
 }
+gh_pr_api_call() {
+  gsetapivalues
+  api_url_stub="pulls"
+  #/repos/:owner/:repo/pulls/
+}
+gh_issue_api_call() {
+  gsetapivalues
+  if (( $# < 1 )); then
+    echo "Need issue #"; return
+  else
+    issue_number="$1"; shift
+	api_url_stub="$GITHUB_API_URL/repos/$github_owner/$github_repo/issues/$issue_number"
+    if (( $# > 0 )); then
+	  if [ '?' != $(echo "$1" | head -c 1) ]; then
+	    api_url_stub="$api_url_stub/"
+	  fi
+	  api_url_stub="$api_url_stub$1"
+	fi
+  fi
+  curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$api_url_stub"
+  
+}
 gmergetomaster() {
   curbranch=$(gcurbranch)
   git checkout master && git pull && git merge "$curbranch"
@@ -169,8 +199,7 @@ alias gchpr=gchprbranch
 gprlabelset() {
   gsetapivalues
   if [ -z "$1" ]; then
-    echo "Need label name as param"
-    return
+    echo "Need label name as param"; return
   else
     label_to_add="$1"
   fi
@@ -243,7 +272,7 @@ gtagrelease() {
   git tag -a -m "Release $tag" "v$tag"
   # git push --follow-tags
 }
-alias grebmaster='git rebase origin/master'
+alias grebmaster='git fetch && git rebase origin/master'
 alias grebabort='git rebase --abort'
 alias grebcontinue='git rebase --continue'
 
@@ -284,11 +313,10 @@ alias mmstartdb='mm && docker-compose up db'
 alias mmstartdbelastic='mm && docker-compose up db elastic'
 alias mmstartweb='mm && docker-compose run --service-ports web'
 alias mmmakemigration='mm && docker-compose run --service-ports web python3 ./manage.py makemigrations'
-alias mmmigrate='mm && docker-compose run --service-ports web python3 ./manage.py migrate'
+alias mmmigrate='mm && docker-compose run web python3 ./manage.py migrate'
 alias mmip='docker-machine ip '"$MM_MACHINE_NAME"
 alias mmstartserver='mmenv && docker-compose run --service-ports web ./manage.py runserver 0.0.0.0:8079'
 alias mmwebpack='./webpack_dev_server.sh'
-alias mmtestall='./test_suite.sh'
 alias mmshell='docker-compose run web ./manage.py shell'
 alias mmindex='docker-compose run web ./manage.py recreate_index'
 mmsearchindex() {
@@ -321,6 +349,12 @@ mmdbconnect() {
 mmdbrun() {
   mmenv && psql -h $(mmip) -p $(mmdbport) -U postgres -c $@
 }
+mmdbnotfilledout() {
+  mmdbrun "update profiles_profile set filled_out = 'f' where edx_name = 'staff';"
+}
+mmdbfilledout() {
+  mmdbrun "update profiles_profile set filled_out = 't' where edx_name = 'staff';"
+}
 mmtestcfgminimal() {
   /bin/cp -f pytest_minimal.ini pytest.ini
 }
@@ -330,6 +364,14 @@ mmtestcfgrevert() {
 alias mmtest='./test_suite.sh'
 alias mmlintjs='docker-compose run watch npm run-script lint'
 alias mmtestjs='docker-compose run watch npm test'
+mmtestjsdirect() {
+  if [ ! -z "$1" ]; then
+    testfile="$1"; shift
+  fi
+  node ./node_modules/mocha/bin/_mocha --compilers js:babel-register static/js/global_init.js ${testfile:-'static/**/*/*_test.js'} $@
+}
+alias mmtestfull='docker-compose run watch npm test && docker-compose run watch npm run-script lint'
+alias mmtestsuite='. ./test_suite.sh'
 alias mmflow='docker-compose run watch npm run-script flow'
 alias mmlintpy='docker-compose run web pylint'
 alias mmtestpy='docker-compose run web tox'
