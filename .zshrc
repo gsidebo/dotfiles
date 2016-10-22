@@ -1,16 +1,7 @@
+# Machine-unspecific settings
 #
-# Executes commands at the start of an interactive session.
-#
-# Authors:
-#   Sorin Ionescu <sorin.ionescu@gmail.com>
-#
-
-# Source Prezto.
-if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
-  source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
-fi
-
-# Customize to your needs...
+# Env variables to set in ~/.zshrc:
+#   PATH, DEVPATH
 
 setclobber() { 
   setopt clobber 
@@ -223,10 +214,6 @@ alias vssh="vagrant ssh"
 alias vupssh="vagrant up && vagrant ssh"
 alias vhalt="vagrant halt"
 
-export VIRTUALENVWRAP_SH_PATH="/Library/Frameworks/Python.framework/Versions/2.7/bin/virtualenvwrapper.sh"
-export WORKON_HOME=$HOME/.virtualenvs
-export PROJECT_HOME=$DEVPATH
-source "$VIRTUALENVWRAP_SH_PATH"
 venv() {
   cwd=$(pwdtail)
   if [ -d "$WORKON_HOME/$cwd" ]; then

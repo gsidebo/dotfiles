@@ -42,6 +42,12 @@ snippet() {
 alias pynbhere='jupyter notebook'
 alias pynb="pynbhere --notebook-dir=$SANDBOXPATH"
 
+# Virtualenv settings
+export VIRTUALENVWRAP_SH_PATH="/Library/Frameworks/Python.framework/Versions/2.7/bin/virtualenvwrapper.sh"
+export WORKON_HOME=$HOME/.virtualenvs
+export PROJECT_HOME=$DEVPATH
+source "$VIRTUALENVWRAP_SH_PATH"
+
 # Git magic
 export GITHUB_API_URL="https://api.github.com"
 export GIT_AUTHOR_LABEL_NAME="Waiting on Author"
