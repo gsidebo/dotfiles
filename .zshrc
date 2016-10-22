@@ -221,6 +221,45 @@ pipreq() {
 alias vup="vagrant up"
 alias vssh="vagrant ssh"
 alias vupssh="vagrant up && vagrant ssh"
+alias vhalt="vagrant halt"
+
+export VIRTUALENVWRAP_SH_PATH="/Library/Frameworks/Python.framework/Versions/2.7/bin/virtualenvwrapper.sh"
+export WORKON_HOME=$HOME/.virtualenvs
+export PROJECT_HOME=$DEVPATH
+source "$VIRTUALENVWRAP_SH_PATH"
+venv() {
+  cwd=$(pwdtail)
+  if [ -d "$WORKON_HOME/$cwd" ]; then
+    workon "$cwd"
+  else
+    echo "'$cwd' is not an existing virtualenv"
+  fi
+}
+alias venvoff='deactivate'
+venvcreate() {
+  cwd=$(echo "${PWD##*/}")
+  if [ -d "$WORKON_HOME/$cwd" ]; then
+    echo "'$cwd' virtualenv already exists"
+  else
+    mkvirtualenv "$cwd" $@
+    workon "$cwd"
+  fi
+}
+venvdelete() {
+  venvoff
+  cwd=$(echo "${PWD##*/}")
+  if [ -d "$WORKON_HOME/$cwd" ]; then
+    rm -rf "$WORKON_HOME/$cwd"
+  fi
+}
+venvcurrent() {
+  echo "$VIRTUAL_ENV"
+}
+
+### Random util commands
+urlencode() {
+  python -c "import urllib, sys; print urllib.quote(sys.argv[1])" $1
+}
 
 # Machine-specific stuff
 if [[ -s "$DEVPATH/dotfiles/.zshkeys" ]]; then
