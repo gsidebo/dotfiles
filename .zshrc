@@ -42,6 +42,7 @@ alias path='echo -e ${PATH//:/\\n}'
 pwdtail() {
   echo ${PWD##*/}
 }
+alias cdev="cd $DEVPATH"
 
 #   extract:  Extract most know archives with one command
 #   ---------------------------------------------------------

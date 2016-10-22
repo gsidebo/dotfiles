@@ -6,7 +6,6 @@ export EDITOR="/usr/local/bin/mate -w"
 export SCREENSHOTS='/Users/gavin/Screenshots/'
 export CODESNIP='/Users/gavin/Code Snippets/'
 
-alias cdev="cd $DEVPATH"
 alias cdmic="cd $DEVPATH/micromasters"
 alias cdm=cdmic
 alias cdedx="cd $DEVPATH/edx_devstack"
