@@ -1,16 +1,7 @@
+# Machine-unspecific settings
 #
-# Executes commands at the start of an interactive session.
-#
-# Authors:
-#   Sorin Ionescu <sorin.ionescu@gmail.com>
-#
-
-# Source Prezto.
-if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
-  source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
-fi
-
-# Customize to your needs...
+# Env variables to set in ~/.zshrc:
+#   PATH, DEVPATH
 
 setclobber() { 
   setopt clobber 
@@ -44,44 +35,41 @@ alias .3='cd ../../../'                     # Go back 3 directory levels
 alias .4='cd ../../../../'                  # Go back 4 directory levels
 alias .5='cd ../../../../../'               # Go back 5 directory levels
 alias .6='cd ../../../../../../'            # Go back 6 directory levels
-alias edit='charm'                          # edit:         
-alias f='open -a Finder ./'                 # f:            Opens current directory in MacOS Finder
 alias ~="cd ~"                              # ~:            Go Home
 alias path='echo -e ${PATH//:/\\n}'
-pwdtail() {
-  echo ${PWD##*/}
-}
+pwdtail() { echo ${PWD##*/} }
 epoch() { date +%s; }
+alias cdev="cd $DEVPATH"
 
 #   extract:  Extract most know archives with one command
 #   ---------------------------------------------------------
-    extract () {
-        if [ -f $1 ] ; then
-          case $1 in
-            *.tar.bz2)   tar xjf $1     ;;
-            *.tar.gz)    tar xzf $1     ;;
-            *.bz2)       bunzip2 $1     ;;
-            *.rar)       unrar e $1     ;;
-            *.gz)        gunzip $1      ;;
-            *.tar)       tar xf $1      ;;
-            *.tbz2)      tar xjf $1     ;;
-            *.tgz)       tar xzf $1     ;;
-            *.zip)       unzip $1       ;;
-            *.Z)         uncompress $1  ;;
-            *.7z)        7z x $1        ;;
-            *)     echo "'$1' cannot be extracted via extract()" ;;
-             esac
-         else
-             echo "'$1' is not a valid file"
-         fi
-    }
+extract () {
+  if [ -f $1 ] ; then
+    case $1 in
+      *.tar.bz2)   tar xjf $1     ;;
+      *.tar.gz)    tar xzf $1     ;;
+      *.bz2)       bunzip2 $1     ;;
+      *.rar)       unrar e $1     ;;
+      *.gz)        gunzip $1      ;;
+      *.tar)       tar xf $1      ;;
+      *.tbz2)      tar xjf $1     ;;
+      *.tgz)       tar xzf $1     ;;
+      *.zip)       unzip $1       ;;
+      *.Z)         uncompress $1  ;;
+      *.7z)        7z x $1        ;;
+      *)     echo "'$1' cannot be extracted via extract()" ;;
+    esac
+  else
+    echo "'$1' is not a valid file"
+  fi
+}
 
 alias qfind="find . -name "                 # qfind:    Quickly search for file
 ff () { /usr/bin/find . -name "$@" ; }      # ff:       Find file under the current directory
 ffs () { /usr/bin/find . -name "$@"'*' ; }  # ffs:      Find file whose name starts with a given string
 ffe () { /usr/bin/find . -name '*'"$@" ; }  # ffe:      Find file whose name ends with a given string
 
-# git
+### git
 alias gs="git status"
 alias gss="git status -s"
 alias ga='git add'
@@ -216,7 +204,7 @@ gchtheirs() {
   git checkout "theirs" "$1"
 }
 
-# pip
+### pip
 pipreq() {
   if [ -z "$1" ] ; then
     reqfile="requirements.txt"
@@ -226,10 +214,46 @@ pipreq() {
   pip install -r "$reqfile"
 }
 
-# vagrant
+### vagrant
 alias vup="vagrant up"
 alias vssh="vagrant ssh"
 alias vupssh="vagrant up && vagrant ssh"
+alias vhalt="vagrant halt"
+
+### virtualenv
+venv() {
+  cwd=$(pwdtail)
+  if [ -d "$WORKON_HOME/$cwd" ]; then
+    workon "$cwd"
+  else
+    echo "'$cwd' is not an existing virtualenv"
+  fi
+}
+alias venvoff='deactivate'
+venvcreate() {
+  cwd=$(echo "${PWD##*/}")
+  if [ -d "$WORKON_HOME/$cwd" ]; then
+    echo "'$cwd' virtualenv already exists"
+  else
+    mkvirtualenv "$cwd" $@
+    workon "$cwd"
+  fi
+}
+venvdelete() {
+  venvoff
+  cwd=$(echo "${PWD##*/}")
+  if [ -d "$WORKON_HOME/$cwd" ]; then
+    rm -rf "$WORKON_HOME/$cwd"
+  fi
+}
+venvcurrent() {
+  echo "$VIRTUAL_ENV"
+}
+
+### Random util commands
+urlencode() {
+  python -c "import urllib, sys; print urllib.quote(sys.argv[1])" $1
+}
 
 # Machine-specific stuff
 if [[ -s "$DEVPATH/dotfiles/.zshkeys" ]]; then
