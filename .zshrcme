@@ -36,7 +36,11 @@ makegif() {
   ffmpeg -v warning -i "$input" -i $palette -lavfi "$filters [x]; [x][1:v] paletteuse" -y "$output"
 }
 snippet() {
-  cp "$1" "$CODESNIP"
+  new_file_path="$CODESNIP"
+  if [ ! -z "$2" ]; then
+    new_file_path="$new_file_path/$1"
+  fi
+  cp "$1" "$new_file_path"
 }
 urlencode() {
   python -c "import urllib, sys; print urllib.quote(sys.argv[1])" $1
@@ -147,7 +151,11 @@ gmergetomaster() {
 }
 gcurbranchprinfo() {
   gsetapivalues
-  curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls?head=$github_owner:$curbranch"
+  local params=''
+  if [ ! -z $1 ]; then
+    params="&$1"
+  fi
+  curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls?head=$github_owner:$curbranch$params"
 }
 getissuefrombranch() {
   gcurbranch | grep -Eo '^[0-9]+'
@@ -214,6 +222,7 @@ gprlabelset() {
 gprlabelreview() {
   gprlabelset "$GIT_REVIEW_LABEL_NAME" $1
 }
+alias gprlabelneeds=gprlabelreview
 gprlabelwaiting() {
   gprlabelset "$GIT_AUTHOR_LABEL_NAME" $1
 }
@@ -221,14 +230,15 @@ gmyissues() {
   gsetapivalues && gh_api_call "search/issues?q=assignee:$GIT_USERNAME+repo:$github_owner/$github_repo+state:open" | jq '.["items"][] | {number: .["number"], title: .["title"], url: .["html_url"]} + if has("pull_request") then {is: "PULL REQUEST"} else {} end  + if (.["labels"] | any(.["name"] == "epic")) then {is: "EPIC"} else {} end'
 }
 gmyprsassigned() {
-  gh_prs_api_call "assignee:$GIT_USERNAME" | jq '.["items"][] | {number: .["number"], title: .["title"], label: [.["labels"][] | .["name"]] | join(", ")}'
+  gh_prs_api_call "assignee:$GIT_USERNAME" | jq '.["items"][] | {number: .["number"], title: .["title"], author: .["user"]["login"], label: [.["labels"][] | .["name"]] | join(", ")}'
 }
 gmyprscreated() {
   gh_prs_api_call "author:$GIT_USERNAME" | jq '.["items"][] | {number: .["number"], title: .["title"], label: [.["labels"][] | .["name"]] | join(", ")}'
 }
+alias gmyprs="echo 'ASSIGNED' && gmyprsassigned && echo 'CREATED' && gmyprscreated"
 gsquash() {
   curbranch=$(gcurbranch)
-  branch_parent_commit=$(git merge-base $curbranch master)
+  local branch_parent_commit=$(git merge-base $curbranch master)
   if [ -z "$curbranch" ]; then
     echo "No current branch obtained. No squashy."
   elif [[ "$curbranch" == "master" ]]; then
@@ -238,10 +248,14 @@ gsquash() {
   else
     commitmsg=''
     if (( $# < 1 )); then
-      proposed_title=$(gcurbranchprinfo | jq -r '.[0]["title"]')
-	  if [ -z "$proposed_title" ]; then
+	  curbranchprtitle=$(gcurbranchprinfo | jq -r 'if . | length == 0 then "" else .[0]["title"] end')
+	  if [ -z "$curbranchprtitle" ]; then
+	    # Get the commit hash for the first commit after the merge-base
 	    first_branch_commit=$(git log --format=%H | tr '\n' ',' | grep -Eo "\w+,$branch_parent_commit" | grep -Eo "^[^,]+")
+		# Get the commit message
 		proposed_title=$(git show "$first_branch_commit" --format="%s" --no-patch)
+	  else
+	    proposed_title="$curbranchprtitle"
 	  fi
       read -q "REPLY?No message specified. Use the following? [$proposed_title]: "
 	  echo
@@ -275,6 +289,24 @@ gtagrelease() {
 alias grebmaster='git fetch && git rebase origin/master'
 alias grebabort='git rebase --abort'
 alias grebcontinue='git rebase --continue'
+gsnipchanges() {
+  local filename=''
+  local filepath=''
+  local fileext="$1"
+  if [ ! -z $2 ]; then
+    filename="$2"
+  else
+    local cleancurbranch=$(gcurbranch | sed 's/\//\-/g')
+    filename="$cleancurbranch"
+  fi
+  if [ -f "$CODESNIP/$filename.$fileext" ]; then
+    filename="$filename-$(epoch)"
+  fi
+  filepath="/tmp/$filename.$fileext"
+  git diff > "$filepath" && snippet "$filepath" && rm -f "$filepath"
+}
+gpatchsnip() { gsnipchanges 'patch' $@; }
+gdiffsnip() { gsnipchanges 'diff' $@; }
 
 
 # Docker functions and aliases
@@ -291,6 +323,7 @@ export MM_MACHINE_NAME='mm'
 alias mmenv="dockenv $MM_MACHINE_NAME"
 alias mmstartmachine="docker-machine start $MM_MACHINE_NAME"
 alias mmsetup='mmstartmachine; mmenv'
+alias mmrestart='dockrestart mm'
 mm() {
   if [ $(pwd) != "$DEVPATH/micromasters" ]; then
     echo "Changing directory to $DEVPATH/micromasters"
@@ -312,8 +345,12 @@ alias mmstart='mm && docker-compose up'
 alias mmstartdb='mm && docker-compose up db'
 alias mmstartdbelastic='mm && docker-compose up db elastic'
 alias mmstartweb='mm && docker-compose run --service-ports web'
-alias mmmakemigration='mm && docker-compose run --service-ports web python3 ./manage.py makemigrations'
-alias mmmigrate='mm && docker-compose run web python3 ./manage.py migrate'
+mmmanage() {
+	mm && docker-compose run web ./manage.py $@
+}
+alias mmmakemigration='mmmanage makemigrations'
+mmshowmigrations() { mmmanage showmigrations $1; }
+mmmigrate() { mmmanage migrate $@; }
 alias mmip='docker-machine ip '"$MM_MACHINE_NAME"
 alias mmstartserver='mmenv && docker-compose run --service-ports web ./manage.py runserver 0.0.0.0:8079'
 alias mmwebpack='./webpack_dev_server.sh'
@@ -343,7 +380,7 @@ mmcleanstaticbuild() {
   fi
   docker-compose run web bash -c "rm -rf ./staticfiles"
 }
-mmdbconnect() {
+mmdb() {
   mmenv && psql -h $(mmip) -p $(mmdbport) -U postgres
 }
 mmdbrun() {
@@ -370,24 +407,36 @@ mmtestjsdirect() {
   fi
   node ./node_modules/mocha/bin/_mocha --compilers js:babel-register static/js/global_init.js ${testfile:-'static/**/*/*_test.js'} $@
 }
+mmtestjsgrep() {
+  mmtestjsdirect "$1" --grep "$2"
+}
 alias mmtestfull='docker-compose run watch npm test && docker-compose run watch npm run-script lint'
 alias mmtestsuite='. ./test_suite.sh'
 alias mmflow='docker-compose run watch npm run-script flow'
 alias mmlintpy='docker-compose run web pylint'
 alias mmtestpy='docker-compose run web tox'
 mmtestpymin() {
+  local keepmin=''
+  if [ ! -z "$1" ] && [ "$1" = '--keepmin' ]; then;
+    keepmin="true"; shift
+  fi
   mmtestcfgminimal && docker-compose run web tox $@;
-  mmtestcfgrevert
+  if [ -z "$keepmin" ]; then
+  	mmtestcfgrevert
+  fi
 }
+alias mmtestpyminkeep='mmtestpymin --keepmin'
 alias mmtoxenv='. .tox/py35/bin/activate'
 alias mmdjangodebug='cp $CODESNIP/settingsfiles/.env_django_debug ~/dev/micromasters/.env'
 alias mmdjangowarning='cp $CODESNIP/settingsfiles/.env_django_warning ~/dev/micromasters/.env'
 alias mmgetdbport="docker-compose ps | grep '_db' | grep -Eo '[^ ]+\s+$' | grep -Eo ':(\d+)' | cut -c 2-"
 mmdbport() {
 	export MM_DB_PORT=$(mmgetdbport)
-	echo "$MM_DB_PORT"
+    if [ -z "$1" ] || [ "$1" != '-s' ]; then
+	  echo "$MM_DB_PORT"
+	fi
 }
-alias mmnb='mm && mmdbport && jupyter notebook micromasters.ipynb --log-level=ERROR' # --notebook-dir=".ipynb"
+alias mmnb='mm && mmdbport -s && jupyter notebook micromasters.ipynb --log-level=ERROR' # --notebook-dir=".ipynb"
 
 
 # Random startup

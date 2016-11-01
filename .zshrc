@@ -51,6 +51,7 @@ alias path='echo -e ${PATH//:/\\n}'
 pwdtail() {
   echo ${PWD##*/}
 }
+epoch() { date +%s; }
 
 #   extract:  Extract most know archives with one command
 #   ---------------------------------------------------------
@@ -146,6 +147,14 @@ gdiffbranches() {
     branch2="$1"; shift
   fi
   git diff "$branch1".."$branch2" $@
+}
+gdiffbranchfile () {
+  if [ ! -z "$2" ]; then
+    branch="$1"; shift
+  else
+    branch="master"
+  fi
+  git diff "$branch" "$1"
 }
 alias gdif=gdiff
 alias glog='git log'
