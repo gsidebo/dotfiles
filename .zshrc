@@ -259,6 +259,9 @@ urlencode() {
 if [[ -s "$DEVPATH/dotfiles/.zshkeys" ]]; then
   source "$DEVPATH/dotfiles/.zshkeys"
 fi
-if [[ -s "$DEVPATH/dotfiles/.zshrcme" ]]; then
-  source "$DEVPATH/dotfiles/.zshrcme"
+if [[ -s "$DEVPATH/dotfiles/.rcsettings" ]]; then
+  source "$DEVPATH/dotfiles/.rcsettings"
+  if [[ ! -z "$MYZSHRC" ]]; then
+    source "$MYZSHRC"
+  fi
 fi

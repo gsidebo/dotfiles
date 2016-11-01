@@ -1,0 +1,1 @@
+export MYZSHRC="$DEVPATH/dotfiles/.zshrc_mit"
