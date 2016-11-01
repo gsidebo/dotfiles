@@ -256,9 +256,6 @@ urlencode() {
 }
 
 # Machine-specific stuff
-if [[ -s "$DEVPATH/dotfiles/.zshkeys" ]]; then
-  source "$DEVPATH/dotfiles/.zshkeys"
-fi
 if [[ -s "$DEVPATH/dotfiles/.rcsettings" ]]; then
   source "$DEVPATH/dotfiles/.rcsettings"
   if [[ ! -z "$MYZSHRC" ]]; then

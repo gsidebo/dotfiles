@@ -1,4 +1,6 @@
 - install prezto (if needed)
 - move example_files/init.zsh to ~/.zprezto
 - for machine-specific config, create .rcsettings with MYZSHRC variable pointing to local rc file path
-- copy example_files/.zshrc to ~/.zshrc and change devpath (if needed)
+- copy example_files/.zshrc to ~/.zshrc
+  - change devpath (if needed)
+  - source GIT_USERNAME and GIT_TOKEN (if needed)
