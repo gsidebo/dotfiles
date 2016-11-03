@@ -1,1 +1,1 @@
-export MYZSHRC="$DEVPATH/dotfiles/.zshrc_mit"
+export MYZSHRC="$DEVPATH/dotfiles/.zshrc_home"
