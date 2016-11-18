@@ -1,5 +1,7 @@
 - install prezto (if needed)
-- move example_files/init.zsh to ~/.zprezto
+- move example files (might be a good idea to review the changes in case you've DLed a new version)
+  - example_files/init.zsh into ~/.zprezto/
+  - example_files/.zpreztorc to ~/.zpreztorc (~/.zpreztorc is a symlink)
 - for machine-specific config, create .rcsettings with MYZSHRC variable pointing to local rc file path
 - copy example_files/.zshrc to ~/.zshrc
   - change devpath (if needed)
