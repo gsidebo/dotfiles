@@ -80,6 +80,18 @@ alias gch='git checkout'
 alias gch-='git checkout -'
 alias g-=gch-
 alias gchmaster='git checkout master && git pull'
+gchfile() {
+  local filebranch=''
+  local filepath=''
+  if (( $# < 2 )); then
+    filebranch="origin/master"
+	filepath="$1"
+  else
+  	filebranch="$1"
+	filepath="$2"
+  fi
+  git checkout "$filebranch" "$filepath"
+}
 alias master=gchmaster
 alias gpll='git pull'
 alias gpull=gpll

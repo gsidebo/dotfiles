@@ -164,16 +164,21 @@ gopenprissue() {
   fi
   gopenissue $(gprissue "$pr_issue_number")
 }
+gprbranchname() {
+  if [ -z "$1" ]; then
+    echo "Need PR issue # as param"
+    return
+  fi
+  curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls/$1" | jq -r '.["head"]["ref"]'
+}
 gchprbranch() {
   if [ -z "$1" ]; then
     echo "Need PR issue # as param"
     return
-  else
-    pr_issue="$1"
   fi
   gsetapivalues
-  branch_name=$(curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls/$pr_issue" | jq -r '.["head"]["ref"]')
-  git fetch && git checkout "$branch_name"
+  local branch_name=$(gprbranchname $1)
+  git fetch && git checkout $branch_name
 }
 alias gchpr=gchprbranch
 gprlabelset() {
@@ -240,7 +245,7 @@ gsquash() {
 	fi
     git reset --soft "$branch_parent_commit"
     git commit -am "$commitmsg"
-    #git push -f
+    #git push -fz
   fi
 }
 gtagrelease() {
@@ -317,6 +322,8 @@ alias mmstart='mm && docker-compose up'
 alias mmstartdb='mm && docker-compose up db'
 alias mmstartdbelastic='mm && docker-compose up db elastic'
 alias mmstartweb='mm && docker-compose run --service-ports web'
+alias mmweb=mmstartweb
+alias mmdbelastic=mmstartdbelastic
 mmmanage() {
 	mm && docker-compose run web ./manage.py $@
 }
@@ -325,9 +332,11 @@ mmshowmigrations() { mmmanage showmigrations $1; }
 mmmigrate() { mmmanage migrate $@; }
 alias mmip='docker-machine ip '"$MM_MACHINE_NAME"
 alias mmstartserver='mmenv && docker-compose run --service-ports web ./manage.py runserver 0.0.0.0:8079'
-alias mmwebpack='./webpack_dev_server.sh'
-alias mmshell='docker-compose run web ./manage.py shell'
-alias mmindex='docker-compose run web ./manage.py recreate_index'
+alias mmwebpack='mm && ./webpack_dev_server.sh'
+alias mmshell='mm && docker-compose run web ./manage.py shell'
+alias mmindex='mm && docker-compose run web ./manage.py recreate_index'
+alias mmseed='mm && docker-compose run web ./manage.py seed_db --staff-user=staff'
+alias mmunseed='mm && docker-compose run web ./manage.py unseed_db'
 mmsearchindex() {
   if [ ! -z $1 ]; then
     esquery="?q=$1"
@@ -356,7 +365,16 @@ mmdb() {
   mmenv && psql -h $(mmip) -p $(mmdbport) -U postgres
 }
 mmdbrun() {
-  mmenv && psql -h $(mmip) -p $(mmdbport) -U postgres -c $@
+  local runcmd
+  local db
+  if [ ! -z $2 ]; then
+    runcmd="$2"
+	db="$1"
+  else
+    runcmd="$1"
+	db="postgres"
+  fi
+  mmenv && psql -h $(mmip) -p $(mmdbport) -U postgres --dbname=$db -c $runcmd
 }
 mmdbnotfilledout() {
   mmdbrun "update profiles_profile set filled_out = 'f' where edx_name = 'staff';"
@@ -409,7 +427,12 @@ mmdbport() {
 	fi
 }
 alias mmnb='mm && mmdbport -s && jupyter notebook micromasters.ipynb --log-level=ERROR' # --notebook-dir=".ipynb"
-
+mmsetloglevel() {
+  sed -i -e "s/MICROMASTERS_LOG_LEVEL=$1/MICROMASTERS_LOG_LEVEL=$2/g" .env
+  sed -i -e "s/DJANGO_LOG_LEVEL=$1/DJANGO_LOG_LEVEL=$2/g" .env
+}
+alias mmsetdebug="mmsetloglevel WARNING DEBUG"
+alias mmsetwarning="mmsetloglevel DEBUG WARNING"
 
 # Random startup
 alias edxstart='cd ~/dev/edx_devstack && vup && vssh'
