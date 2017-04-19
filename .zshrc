@@ -79,6 +79,7 @@ alias gcurbranch='git rev-parse --abbrev-ref HEAD'
 alias gch='git checkout'
 alias gch-='git checkout -'
 alias g-=gch-
+alias gcp='git cherry-pick'
 alias gchmaster='git checkout master && git pull'
 gchfile() {
   local filebranch=''
@@ -213,7 +214,7 @@ gchtheirs() {
   if [ -z "$1" ]; then
     echo "Need file as param"; return
   fi
-  git checkout "theirs" "$1"
+  gchkeepfile "theirs" "$1"
 }
 
 ### pip

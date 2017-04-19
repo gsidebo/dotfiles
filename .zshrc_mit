@@ -1,4 +1,4 @@
-PATH="/Library/Frameworks/Python.framework/Versions/2.7/bin:/Applications/Postgres.app/Contents/Versions/9.5/bin:${PATH}"
+PATH="/usr/local/bin:/Library/Frameworks/Python.framework/Versions/2.7/bin:/Applications/Postgres.app/Contents/Versions/9.5/bin:${PATH}"
 # Remove duplicates from PATH
 PATH=$(echo "$PATH" | awk -v RS=':' -v ORS=":" '!a[$1]++' | sed 's/:$//' | tr -d '\n')
 export PATH
@@ -9,11 +9,14 @@ export CODESNIP='/Users/gavin/Code Snippets/'
 alias edit='charm'
 alias f='open -a Finder ./' # Opens current directory in MacOS Finder
 
-alias cdmic="cd $DEVPATH/micromasters"
+export MM_PATH="$DEVPATH/micromasters"
+export BOOTCAMP_PATH="$DEVPATH/bootcamp-ecommerce"
+export SANDBOX_PATH="$DEVPATH/sandbox"
+alias cdmic="cd $MM_PATH"
 alias cdm=cdmic
+alias cdboot="cd $BOOTCAMP_PATH"
+alias cdsandbox="cd $SANDBOX_PATH"
 alias cdedx="cd $DEVPATH/edx_devstack"
-export SANDBOXPATH="$DEVPATH/sandbox"
-alias cdsandbox="cd $SANDBOXPATH"
 
 alias fixenter="stty sane"
 makegif() {
@@ -45,15 +48,20 @@ snippet() {
   cp "$1" "$new_file_path"
 }
 alias pastejson='pbpaste | jq .'
+alias pastejsoncopy='pbpaste | jq . | pbcopy'
 
 alias pynbhere='jupyter notebook'
-alias pynb="pynbhere --notebook-dir=$SANDBOXPATH"
+alias pynb="pynbhere --notebook-dir=$SANDBOX_PATH"
 
 # Virtualenv settings
 export VIRTUALENVWRAP_SH_PATH="/Library/Frameworks/Python.framework/Versions/2.7/bin/virtualenvwrapper.sh"
 export WORKON_HOME=$HOME/.virtualenvs
 export PROJECT_HOME=$DEVPATH
 source "$VIRTUALENVWRAP_SH_PATH"
+
+# Simple Git shortcuts
+alias gchrelease='git checkout release'
+alias gchrc='git checkout release-candidate'
 
 # Git magic
 export GITHUB_API_URL="https://api.github.com"
@@ -266,6 +274,7 @@ gtagrelease() {
 alias grebmaster='git fetch && git rebase origin/master'
 alias grebabort='git rebase --abort'
 alias grebcontinue='git rebase --continue'
+alias grebskip='git rebase --skip'
 gsnipchanges() {
   local filename=''
   local filepath=''
@@ -294,7 +303,12 @@ alias dockstop='docker-machine stop'
 alias dockrestart='docker-machine restart'
 alias dockbuild='docker-compose build'
 
-# Project-specific commands
+
+# Node stuff
+alias webpack="./webpack_dev_server.sh"
+alias webpackinstall="./webpack_dev_server.sh --install"
+
+### Project-specific commands
 # MM
 export MM_MACHINE_NAME='mm'
 alias mmenv="dockenv $MM_MACHINE_NAME"
@@ -302,9 +316,9 @@ alias mmstartmachine="docker-machine start $MM_MACHINE_NAME"
 alias mmsetup='mmstartmachine; mmenv'
 alias mmrestart='dockrestart mm'
 mm() {
-  if [ $(pwd) != "$DEVPATH/micromasters" ]; then
-    echo "Changing directory to $DEVPATH/micromasters"
-	cdm
+  if [ $(pwd) != "$MM_PATH" ]; then
+    echo "Changing directory to $MM_PATH"
+	cd $MM_PATH
   fi
   if [ $(docker-machine status $MM_MACHINE_NAME) != "Running" ]; then
     mmstartmachine
@@ -321,9 +335,14 @@ mm() {
 alias mmstart='mm && docker-compose up'
 alias mmstartdb='mm && docker-compose up db'
 alias mmstartdbelastic='mm && docker-compose up db elastic'
+alias mmstartdec='mm && docker-compose up db elastic celery'
 alias mmstartweb='mm && docker-compose run --service-ports web'
+alias mmstartwebnginx='mm && docker-compose up nginx web'
+alias mmstartwebpdb='docker-compose run --service-ports web ./manage.py runserver 0.0.0.0:8077'
 alias mmweb=mmstartweb
+alias mmwebnginx=mmstartwebnginx
 alias mmdbelastic=mmstartdbelastic
+alias mmdec=mmstartdec
 mmmanage() {
 	mm && docker-compose run web ./manage.py $@
 }
@@ -332,7 +351,8 @@ mmshowmigrations() { mmmanage showmigrations $1; }
 mmmigrate() { mmmanage migrate $@; }
 alias mmip='docker-machine ip '"$MM_MACHINE_NAME"
 alias mmstartserver='mmenv && docker-compose run --service-ports web ./manage.py runserver 0.0.0.0:8079'
-alias mmwebpack='mm && ./webpack_dev_server.sh'
+alias mmwebpack='mm && webpack'
+alias mmwebpackinstall='mm && webpackinstall'
 alias mmshell='mm && docker-compose run web ./manage.py shell'
 alias mmindex='mm && docker-compose run web ./manage.py recreate_index'
 alias mmseed='mm && docker-compose run web ./manage.py seed_db --staff-user=staff'
@@ -382,15 +402,9 @@ mmdbnotfilledout() {
 mmdbfilledout() {
   mmdbrun "update profiles_profile set filled_out = 't' where edx_name = 'staff';"
 }
-mmtestcfgminimal() {
-  /bin/cp -f pytest_minimal.ini pytest.ini
-}
-mmtestcfgrevert() {
-  git checkout origin/master pytest.ini
-}
 alias mmtest='./test_suite.sh'
 alias mmlintjs='docker-compose run watch npm run-script lint'
-alias mmtestjs='docker-compose run watch npm test'
+alias mmtestjs='./js_test.sh'
 mmtestjsdirect() {
   if [ ! -z "$1" ]; then
     testfile="$1"; shift
@@ -402,9 +416,11 @@ mmtestjsgrep() {
 }
 alias mmtestfull='docker-compose run watch npm test && docker-compose run watch npm run-script lint'
 alias mmtestsuite='. ./test_suite.sh'
-alias mmflow='docker-compose run watch npm run-script flow'
+alias mmflow='npm run-script flow'
 alias mmlintpy='docker-compose run web pylint'
 alias mmtestpy='docker-compose run web tox'
+alias mmtestcfgminimal='/bin/cp -f pytest_minimal.ini pytest.ini'
+alias mmtestcfgrevert='git checkout origin/master pytest.ini'
 mmtestpymin() {
   local keepmin=''
   if [ ! -z "$1" ] && [ "$1" = '--keepmin' ]; then;
@@ -433,6 +449,30 @@ mmsetloglevel() {
 }
 alias mmsetdebug="mmsetloglevel WARNING DEBUG"
 alias mmsetwarning="mmsetloglevel DEBUG WARNING"
+# BOOTCAMP
+export BOOTCAMP_MACHINE_NAME='bootcamp'
+alias bootenv="dockenv $BOOTCAMP_MACHINE_NAME"
+alias bootstartmachine="docker-machine start $BOOTCAMP_MACHINE_NAME"
+alias bootsetup='bootstartmachine; bootenv'
+alias bootrestart="dockrestart $BOOTCAMP_MACHINE_NAME"
+bootcamp() {
+  if [ $(pwd) != "$BOOTCAMP_PATH" ]; then
+    echo "Changing directory to $BOOTCAMP_PATH"
+	cd $BOOTCAMP_PATH
+  fi
+  if [ $(docker-machine status $BOOTCAMP_MACHINE_NAME) != "Running" ]; then
+    bootstartmachine
+  fi
+  if [ "$DOCKER_MACHINE_NAME" != "$BOOTCAMP_MACHINE_NAME" ]; then
+    echo "Setting docker env variables"
+	bootenv
+  fi
+  if [[ $(venvcurrent) != *$(pwdtail)* ]]; then
+    echo "Setting virtualenv"
+  	venv
+  fi
+}
+alias bootstart='bootcamp && docker-compose up'
 
 # Random startup
 alias edxstart='cd ~/dev/edx_devstack && vup && vssh'
