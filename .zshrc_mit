@@ -3,8 +3,8 @@ PATH="/usr/local/bin:/Library/Frameworks/Python.framework/Versions/2.7/bin:/Appl
 PATH=$(echo "$PATH" | awk -v RS=':' -v ORS=":" '!a[$1]++' | sed 's/:$//' | tr -d '\n')
 export PATH
 export EDITOR="/usr/local/bin/mate -w"
-export SCREENSHOTS='/Users/gavin/Screenshots/'
-export CODESNIP='/Users/gavin/Code Snippets/'
+export SCREENSHOTS='/Users/gavin/Screenshots'
+export CODESNIP='/Users/gavin/Code Snippets'
 
 alias edit='charm'
 alias f='open -a Finder ./' # Opens current directory in MacOS Finder
@@ -64,14 +64,34 @@ alias gchrelease='git checkout release'
 alias gchrc='git checkout release-candidate'
 
 # Git magic
+export GITHUB_URL="https://github.com"
 export GITHUB_API_URL="https://api.github.com"
 export GIT_AUTHOR_LABEL_NAME="Waiting on Author"
 export GIT_REVIEW_LABEL_NAME="Needs Review"
+gsetremote() {
+  local branch=''
+  if [ ! -z $1 ]; then
+    branch="$1"
+  else
+    branch=$(gcurbranch)
+  fi
+  local git_remote=$(git config "branch.$branch.remote")
+  if [ -z "$git_remote" ]; then
+    git_remote=$(git config "branch.master.remote")
+    if [ -z "$git_remote" ]; then
+      echo "Couldn't determine a remote for current branch or master"
+      exit 1
+    else
+      echo "Branch $branch has no remote. Defaulting to master remote ($remote)"
+    fi
+  fi
+  echo "$git_remote"
+}
 gsetapivalues() {
-  curbranch=$(gcurbranch)
-  remote_tail=$(git remote show origin -n | grep 'Push' | grep -Eo '(\w+)/(\w+)\.git$')
+  git_remote=$(gsetremote)
+  remote_tail=$(git remote show $remote -n | grep 'Push' | grep -Eo '(\w+)/([^/]*)\.git$')
   github_owner=$(echo "$remote_tail" | grep -Eo '^\w+')
-  github_repo=$(echo "$remote_tail" | perl -nle 'print $& if m{(?<=/)\w+}')
+  github_repo=$(echo "$remote_tail" | perl -nle '/^.*\/(.*)\.git/ && print "$1";')
 }
 gh_api_call() {
   if (( $# < 1 )); then
@@ -124,6 +144,10 @@ gh_issue_api_call() {
   curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$api_url_stub"
   
 }
+gh_site_url_base() {
+  gsetapivalues
+  echo "$GITHUB_URL/$github_owner/$github_repo"
+}
 gmergetomaster() {
   curbranch=$(gcurbranch)
   git checkout master && git pull && git merge "$curbranch"
@@ -171,6 +195,15 @@ gopenprissue() {
     pr_issue_number=$1
   fi
   gopenissue $(gprissue "$pr_issue_number")
+}
+gopencommit() {
+  local urlbase=''
+  if [ -z "$1" ]; then
+    echo "Need commit SHA as param"
+    return
+  fi
+  urlbase=$(gh_site_url_base)
+  open "$urlbase/commit/$1"
 }
 gprbranchname() {
   if [ -z "$1" ]; then
@@ -302,14 +335,71 @@ alias docksshm='docker-compose run web bash'
 alias dockstop='docker-machine stop'
 alias dockrestart='docker-machine restart'
 alias dockbuild='docker-compose build'
-
+alias dockgetdbport="docker-compose ps | grep '_db' | grep -Eo '[^ ]+\s+$' | grep -Eo ':(\d+)' | cut -c 2-"
+dockdbport() {
+	export DOCK_DB_PORT=$(dockgetdbport)
+    if [ -z "$1" ] || [ "$1" != '-s' ]; then
+	  echo "$DOCK_DB_PORT"
+	fi
+}
 
 # Node stuff
 alias webpack="./webpack_dev_server.sh"
 alias webpackinstall="./webpack_dev_server.sh --install"
 
-### Project-specific commands
-# MM
+##############################################
+### General and specific codebase commands ###
+##############################################
+
+# General
+alias lintjs='docker-compose run watch npm run-script lint'
+alias lintsass='docker-compose run watch npm run-script scss_lint'
+alias lint='lintjs && lintsass'
+alias lintpy='docker-compose run web pylint'
+alias testpy='docker-compose run web tox'
+alias testcfgminimal='/bin/cp -f pytest_minimal.ini pytest.ini'
+alias testcfgrevert='git checkout origin/master pytest.ini'
+testpymin() {
+  local keepmin=''
+  if [ ! -z "$1" ] && [ "$1" = '--keepmin' ]; then;
+    keepmin="true"; shift
+  fi
+  testcfgminimal && docker-compose run web tox $@;
+  if [ -z "$keepmin" ]; then
+  	testcfgrevert
+  fi
+}
+alias testpyminkeep='testpymin --keepmin'
+alias flowjs='npm run-script flow'
+pymanage() { docker-compose run web ./manage.py $@; }
+alias pyshell='pymanage shell'
+alias makemigration='pymanage makemigrations'
+migrate() { pymanage migrate $@; }
+dockip() {
+  local machinename
+  if [ ! -z $1 ]; then
+    machinename="$1"
+  else
+    machinename="$DOCKER_MACHINE_NAME"
+  fi
+  docker-machine ip $machinename; 
+}
+dockdbport() { docker-compose ps | grep '_db' | perl -nle '/[0-9\.]*:(\d+)/ && print "$1";' }
+dbconnect() { psql -h $(dockip) -p $(dockdbport) -U postgres }
+dbrun() {
+  local runcmd
+  local db
+  if [ ! -z $2 ]; then
+    runcmd="$2"
+	db="$1"
+  else
+    runcmd="$1"
+	db="postgres"
+  fi
+  psql -h $(dockip) -p $(dockdbport) -U postgres --dbname=$db -c $runcmd
+}
+
+# MICROMASTERS
 export MM_MACHINE_NAME='mm'
 alias mmenv="dockenv $MM_MACHINE_NAME"
 alias mmstartmachine="docker-machine start $MM_MACHINE_NAME"
@@ -381,20 +471,11 @@ mmcleanstaticbuild() {
   fi
   docker-compose run web bash -c "rm -rf ./staticfiles"
 }
-mmdb() {
-  mmenv && psql -h $(mmip) -p $(mmdbport) -U postgres
+mmdb() { 
+  mmenv && dbconnect
 }
 mmdbrun() {
-  local runcmd
-  local db
-  if [ ! -z $2 ]; then
-    runcmd="$2"
-	db="$1"
-  else
-    runcmd="$1"
-	db="postgres"
-  fi
-  mmenv && psql -h $(mmip) -p $(mmdbport) -U postgres --dbname=$db -c $runcmd
+  mmenv && dbrun $@
 }
 mmdbnotfilledout() {
   mmdbrun "update profiles_profile set filled_out = 'f' where edx_name = 'staff';"
@@ -403,52 +484,28 @@ mmdbfilledout() {
   mmdbrun "update profiles_profile set filled_out = 't' where edx_name = 'staff';"
 }
 alias mmtest='./test_suite.sh'
-alias mmlintjs='docker-compose run watch npm run-script lint'
 alias mmtestjs='./js_test.sh'
-mmtestjsdirect() {
-  if [ ! -z "$1" ]; then
-    testfile="$1"; shift
-  fi
-  node ./node_modules/mocha/bin/_mocha --compilers js:babel-register static/js/global_init.js ${testfile:-'static/**/*/*_test.js'} $@
-}
-mmtestjsgrep() {
-  mmtestjsdirect "$1" --grep "$2"
-}
+alias mmlintjs=lintjs
 alias mmtestfull='docker-compose run watch npm test && docker-compose run watch npm run-script lint'
 alias mmtestsuite='. ./test_suite.sh'
-alias mmflow='npm run-script flow'
-alias mmlintpy='docker-compose run web pylint'
-alias mmtestpy='docker-compose run web tox'
-alias mmtestcfgminimal='/bin/cp -f pytest_minimal.ini pytest.ini'
-alias mmtestcfgrevert='git checkout origin/master pytest.ini'
-mmtestpymin() {
-  local keepmin=''
-  if [ ! -z "$1" ] && [ "$1" = '--keepmin' ]; then;
-    keepmin="true"; shift
-  fi
-  mmtestcfgminimal && docker-compose run web tox $@;
-  if [ -z "$keepmin" ]; then
-  	mmtestcfgrevert
-  fi
-}
-alias mmtestpyminkeep='mmtestpymin --keepmin'
+alias mmflow=flowjs
+alias mmlintpy=lintpy
+alias mmtestpy=testpy
+alias mmtestcfgminimal=testcfgminimal
+alias mmtestcfgrevert=testcfgrevert
+alias mmtestpymin=testpymin
+alias mmtestpyminkeep=testpyminkeep
 alias mmtoxenv='. .tox/py35/bin/activate'
 alias mmdjangodebug='cp $CODESNIP/settingsfiles/.env_django_debug ~/dev/micromasters/.env'
 alias mmdjangowarning='cp $CODESNIP/settingsfiles/.env_django_warning ~/dev/micromasters/.env'
-alias mmgetdbport="docker-compose ps | grep '_db' | grep -Eo '[^ ]+\s+$' | grep -Eo ':(\d+)' | cut -c 2-"
-mmdbport() {
-	export MM_DB_PORT=$(mmgetdbport)
-    if [ -z "$1" ] || [ "$1" != '-s' ]; then
-	  echo "$MM_DB_PORT"
-	fi
-}
-alias mmnb='mm && mmdbport -s && jupyter notebook micromasters.ipynb --log-level=ERROR' # --notebook-dir=".ipynb"
+alias mmnb='mm && dockdbport -s && jupyter notebook micromasters.ipynb --log-level=ERROR' # --notebook-dir=".ipynb"
 mmsetloglevel() {
   sed -i -e "s/MICROMASTERS_LOG_LEVEL=$1/MICROMASTERS_LOG_LEVEL=$2/g" .env
   sed -i -e "s/DJANGO_LOG_LEVEL=$1/DJANGO_LOG_LEVEL=$2/g" .env
 }
 alias mmsetdebug="mmsetloglevel WARNING DEBUG"
 alias mmsetwarning="mmsetloglevel DEBUG WARNING"
+
 # BOOTCAMP
 export BOOTCAMP_MACHINE_NAME='bootcamp'
 alias bootenv="dockenv $BOOTCAMP_MACHINE_NAME"
@@ -473,6 +530,21 @@ bootcamp() {
   fi
 }
 alias bootstart='bootcamp && docker-compose up'
+alias bootstartdec='bootcamp && docker-compose up db elastic celery'
+alias bcamp=bootcamp
+alias bstart=bootstart
+bootmanage() {
+	bootcamp && docker-compose run web ./manage.py $@
+}
+alias bootshell='bootmanage shell'
+alias bootnb='bootcamp && dockdbport -s && jupyter notebook bootcamp.ipynb --log-level=ERROR'
+alias boottestjs='./scripts/test/js_test.sh'
+bootdb() { 
+  bootenv && dbconnect
+}
+bootdbrun() {
+  bootenv && dbrun $@
+}
 
 # Random startup
 alias edxstart='cd ~/dev/edx_devstack && vup && vssh'
