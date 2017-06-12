@@ -88,10 +88,10 @@ gsetremote() {
   echo "$git_remote"
 }
 gsetapivalues() {
-  git_remote=$(gsetremote)
-  remote_tail=$(git remote show $remote -n | grep 'Push' | grep -Eo '(\w+)/([^/]*)\.git$')
+  git_remote=$(gsetremote $1)
+  remote_tail=$(git remote -v | grep 'push' | grep "$git_remote" | perl -nle '/.*\/([^\/]+\/.*)\.git/ && print "$1";')
   github_owner=$(echo "$remote_tail" | grep -Eo '^\w+')
-  github_repo=$(echo "$remote_tail" | perl -nle '/^.*\/(.*)\.git/ && print "$1";')
+  github_repo=$(echo "$remote_tail" | perl -nle '/\/(.*)$/ && print "$1";')
 }
 gh_api_call() {
   if (( $# < 1 )); then

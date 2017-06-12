@@ -109,14 +109,40 @@ grecmt() {
 }
 alias gcmtundo='git reset --soft HEAD~'
 alias gpsh='git push'
+
+alias gmasterremote='git config "branch.master.remote"'
+gcurbranchremotename() {
+  git for-each-ref --format='%(upstream:short)' $(git symbolic-ref -q HEAD)
+}
+gcurbranchremote() {
+  local remotewithname=$(gcurbranchremotename)
+  if [ ! -z "$remotewithname" ]; then
+    echo $remotewithname | cut -d/ -f1
+  else
+    echo ""
+  fi
+}
 gpshu() {
-  originmatch=$(git status -s --branch | grep "\.\.\.origin" -Eo)
-  if [ -z "$originmatch" ]; then
-  	git push --set-upstream origin "$(gcurbranch)"
+  local curbranchremote=$(gcurbranchremote)
+  if [ -z "$curbranchremote" ]; then
+    local remote=""
+    if [ -z "$1" ]; then
+      remote=$(gmasterremote)
+      if [ -z "$remote" ]; then
+        echo "No remote provided, and no remote set for master"
+        exit 1
+      else
+        echo "Using remote '$remote'"
+      fi
+    else
+      remote=$1
+    fi
+    git push --set-upstream "$remote" "$(gcurbranch)"
   else
     gpsh
   fi
 }
+
 gdiff() {
   if (( $# < 1 )); then
     git diff HEAD
