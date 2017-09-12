@@ -2,6 +2,7 @@ PATH="/usr/local/bin:/Library/Frameworks/Python.framework/Versions/2.7/bin:/Appl
 # Remove duplicates from PATH
 PATH=$(echo "$PATH" | awk -v RS=':' -v ORS=":" '!a[$1]++' | sed 's/:$//' | tr -d '\n')
 export PATH
+
 export EDITOR="/usr/local/bin/mate -w"
 export SCREENSHOTS='/Users/gavin/Screenshots'
 export CODESNIP='/Users/gavin/Code Snippets'
@@ -12,11 +13,28 @@ alias f='open -a Finder ./' # Opens current directory in MacOS Finder
 export MM_PATH="$DEVPATH/micromasters"
 export BOOTCAMP_PATH="$DEVPATH/bootcamp-ecommerce"
 export SANDBOX_PATH="$DEVPATH/sandbox"
+export OPDISC_PATH="$DEVPATH/open-discussions"
+export OVS_PATH="$DEVPATH/odl-video-service"
+export RDEVPATH="$HOME/redditdev"
+export REDDIT_CONF_PATH="$RDEVPATH/reddit-config"
+export REDDIT_PATH="$RDEVPATH/reddit"
 alias cdmic="cd $MM_PATH"
 alias cdm=cdmic
 alias cdboot="cd $BOOTCAMP_PATH"
 alias cdsandbox="cd $SANDBOX_PATH"
+alias cdovs="cd $OVS_PATH"
 alias cdedx="cd $DEVPATH/edx_devstack"
+alias cdrdev="cd $RDEVPATH"
+alias cdopdisc="cd $OPDISC_PATH"
+alias cdredcon="cd $REDDIT_CONF_PATH"
+
+# Virtualenv settings
+export VIRTUALENV_PYTHON=/usr/local/bin/python3
+export VIRTUALENVWRAPPER_PYTHON=$VIRTUALENV_PYTHON
+export VIRTUALENVWRAP_SH_PATH="/usr/local/bin/virtualenvwrapper.sh"
+export WORKON_HOME=$HOME/.virtualenvs
+export PROJECT_HOME=$DEVPATH
+source "$VIRTUALENVWRAP_SH_PATH"
 
 alias fixenter="stty sane"
 makegif() {
@@ -53,12 +71,6 @@ alias pastejsoncopy='pbpaste | jq . | pbcopy'
 alias pynbhere='jupyter notebook'
 alias pynb="pynbhere --notebook-dir=$SANDBOX_PATH"
 
-# Virtualenv settings
-export VIRTUALENVWRAP_SH_PATH="/Library/Frameworks/Python.framework/Versions/2.7/bin/virtualenvwrapper.sh"
-export WORKON_HOME=$HOME/.virtualenvs
-export PROJECT_HOME=$DEVPATH
-source "$VIRTUALENVWRAP_SH_PATH"
-
 # Simple Git shortcuts
 alias gchrelease='git checkout release'
 alias gchrc='git checkout release-candidate'
@@ -89,9 +101,12 @@ gsetremote() {
 }
 gsetapivalues() {
   git_remote=$(gsetremote $1)
-  remote_tail=$(git remote -v | grep 'push' | grep "$git_remote" | perl -nle '/.*\/([^\/]+\/.*)\.git/ && print "$1";')
+  remote_tail=$(git remote -v | grep 'push' | grep "$git_remote" | perl -nle '/.*github\.com[\/|:]([^\/]+\/.*)\.git/ && print "$1";')
   github_owner=$(echo "$remote_tail" | grep -Eo '^\w+')
   github_repo=$(echo "$remote_tail" | perl -nle '/\/(.*)$/ && print "$1";')
+  if [ -z "$github_owner" ] || [ -z "$github_repo" ]; then
+    echo "Could not properly set github_owner or github_repo."
+  fi
 }
 gh_api_call() {
   if (( $# < 1 )); then
@@ -149,8 +164,7 @@ gh_site_url_base() {
   echo "$GITHUB_URL/$github_owner/$github_repo"
 }
 gmergetomaster() {
-  curbranch=$(gcurbranch)
-  git checkout master && git pull && git merge "$curbranch"
+  git checkout master && git pull && git merge $(gcurbranch)
   git push
 }
 gcurbranchprinfo() {
@@ -159,7 +173,7 @@ gcurbranchprinfo() {
   if [ ! -z $1 ]; then
     params="&$1"
   fi
-  curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls?head=$github_owner:$curbranch$params"
+  curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls?head=$github_owner:$(gcurbranch)$params"
 }
 getissuefrombranch() {
   gcurbranch | grep -Eo '^[0-9]+'
@@ -230,7 +244,7 @@ gprlabelset() {
     label_to_add="$1"
   fi
   if [ -z "$2" ]; then
-    issue_url=$(curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls?head=$github_owner:$curbranch" | jq -r '.[0]["issue_url"]')
+    issue_url=$(curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls?head=$github_owner:$(gcurbranch)" | jq -r '.[0]["issue_url"]')
   else
     issue_url="$GITHUB_API_URL/repos/$github_owner/$github_repo/issues/$2"
   fi
@@ -255,7 +269,7 @@ gmyprscreated() {
 }
 alias gmyprs="echo 'ASSIGNED' && gmyprsassigned && echo 'CREATED' && gmyprscreated"
 gsquash() {
-  curbranch=$(gcurbranch)
+  local curbranch=$(gcurbranch)
   local branch_parent_commit=$(git merge-base $curbranch master)
   if [ -z "$curbranch" ]; then
     echo "No current branch obtained. No squashy."
@@ -321,7 +335,7 @@ gsnipchanges() {
   if [ -f "$CODESNIP/$filename.$fileext" ]; then
     filename="$filename-$(epoch)"
   fi
-  filepath="/tmp/$filename.$fileext"
+  filepath="/tmp/$filename.$fileext"$
   git diff > "$filepath" && snippet "$filepath" && rm -f "$filepath"
 }
 gpatchsnip() { gsnipchanges 'patch' $@; }
@@ -334,18 +348,93 @@ alias docksshc='docker-machine ssh'
 alias docksshm='docker-compose run web bash'
 alias dockstop='docker-machine stop'
 alias dockrestart='docker-machine restart'
+alias dockstart='docker-machine start'
 alias dockbuild='docker-compose build'
 alias dockgetdbport="docker-compose ps | grep '_db' | grep -Eo '[^ ]+\s+$' | grep -Eo ':(\d+)' | cut -c 2-"
+alias dockup='docker-compose up'
+alias dockregen='docker-machine regenerate-certs'
 dockdbport() {
 	export DOCK_DB_PORT=$(dockgetdbport)
     if [ -z "$1" ] || [ "$1" != '-s' ]; then
 	  echo "$DOCK_DB_PORT"
 	fi
 }
+docksetup() {
+  local devpath=$1
+  local machinename=$2
+  if [[ "$devpath" == "." ]]; then
+    devpath=$(pwd)
+  fi
+  if [ $(pwd) != "$devpath" ]; then
+    echo "Changing directory to $devpath"
+	  cd $devpath
+  fi
+  if [ $(docker-machine status $machinename) != "Running" ]; then
+    docker-machine start $machinename
+  fi
+  if [ "$DOCKER_MACHINE_NAME" != "$machinename" ]; then
+    echo "Setting docker env variables"
+	  dockenv $machinename
+  fi
+  if [[ $(venvcurrent) != *$(pwdtail)* ]]; then
+    echo "Setting virtualenv"
+  	venv
+  fi
+}
+alias vboxprocesses="ps xao pid,command | grep 'VBox' | grep -v 'grep'"
+startnb() {
+  local machinename=$1
+  local notebookname
+  local notebookpath
+  if [ -z $machinename ]; then
+    echo "Need to specify the machine name"
+    return
+  elif [ -z $2 ]; then
+    notebookname=$machinename
+  else
+    notebookname=$2
+  fi
+  notebookpath="./$notebookname.ipynb"
+  if [ ! -f "$notebookpath" ]; then
+    echo "Notebook does not exist ($notebookpath)"
+    return
+  fi
+  docksetup . $machinename && dockdbport -s && jupyter notebook $notebookname.ipynb --log-level=ERROR
+}
+dockip() {
+  local machinename
+  if [ ! -z $1 ]; then
+    machinename="$1"
+  else
+    machinename="$DOCKER_MACHINE_NAME"
+  fi
+  docker-machine ip $machinename; 
+}
+dockdbport() { docker-compose ps | grep '_db' | perl -nle '/[0-9\.]*:(\d+)/ && print "$1";' }
+docknginxport() {
+  # hacky af, bruh
+  cat docker-compose.yml | grep 'nginx:' -A 15 | grep 'ports:' -A 1 | head -2 | tail -1 | perl -nle '/(\d+)\"/ && print "$1";'
+}
+openrunning() {
+  local runningmachine
+  if [ ! -z $1 ]; then
+    runningmachine=$1
+  else
+    runningmachine=$DOCKER_MACHINE_NAME
+  fi
+  local machineip=$(docker-machine ip $runningmachine)
+  local webappport=$(docknginxport)
+  if [[ -z $machineip || -z $runningmachine || -z $webappport ]]; then
+    echo "Error - Missing one of the following: running machine ($runningmachine), IP ($machineip), port ($webappport)"
+    return
+  fi
+  open "http://$machineip:$webappport"
+}
 
 # Node stuff
 alias webpack="./webpack_dev_server.sh"
 alias webpackinstall="./webpack_dev_server.sh --install"
+alias webpackinstallsass="npm rebuild node-sass --force && webpackinstall"
 
 ##############################################
 ### General and specific codebase commands ###
@@ -370,34 +459,35 @@ testpymin() {
   fi
 }
 alias testpyminkeep='testpymin --keepmin'
+alias testjs="./scripts/test/js_test.sh"
+alias testjsroot="./js_test.sh"
 alias flowjs='npm run-script flow'
-pymanage() { docker-compose run web ./manage.py $@; }
-alias pyshell='pymanage shell'
-alias makemigration='pymanage makemigrations'
-migrate() { pymanage migrate $@; }
-dockip() {
-  local machinename
-  if [ ! -z $1 ]; then
-    machinename="$1"
-  else
-    machinename="$DOCKER_MACHINE_NAME"
-  fi
-  docker-machine ip $machinename; 
-}
-dockdbport() { docker-compose ps | grep '_db' | perl -nle '/[0-9\.]*:(\d+)/ && print "$1";' }
+dmanage() { docker-compose run web ./manage.py $@; }
+alias dshell='dmanage shell'
+alias makemigration='dmanage makemigrations'
+migrate() { dmanage migrate $@; }
 dbconnect() { psql -h $(dockip) -p $(dockdbport) -U postgres }
 dbrun() {
   local runcmd
   local db
   if [ ! -z $2 ]; then
     runcmd="$2"
-	db="$1"
+	  db="$1"
   else
     runcmd="$1"
-	db="postgres"
+	  db="postgres"
   fi
-  psql -h $(dockip) -p $(dockdbport) -U postgres --dbname=$db -c $runcmd
+  local dbport=$(dockdbport)
+  if [ -z $dbport ]; then
+    echo "No DB port detected. Is the 'db' service running?"
+  else
+    psql -h $(dockip) -p $(dockdbport) -U postgres --dbname=$db -c $runcmd
+  fi
 }
+
+# EDX
+alias edxstart='cd ~/dev/edx_devstack && vup && vssh'
+alias edxstartfresh='cd ~/dev/edx_devstack && vhalt && vup && vssh'
 
 # MICROMASTERS
 export MM_MACHINE_NAME='mm'
@@ -405,23 +495,7 @@ alias mmenv="dockenv $MM_MACHINE_NAME"
 alias mmstartmachine="docker-machine start $MM_MACHINE_NAME"
 alias mmsetup='mmstartmachine; mmenv'
 alias mmrestart='dockrestart mm'
-mm() {
-  if [ $(pwd) != "$MM_PATH" ]; then
-    echo "Changing directory to $MM_PATH"
-	cd $MM_PATH
-  fi
-  if [ $(docker-machine status $MM_MACHINE_NAME) != "Running" ]; then
-    mmstartmachine
-  fi
-  if [ "$DOCKER_MACHINE_NAME" != "$MM_MACHINE_NAME" ]; then
-    echo "Setting docker env variables"
-	mmenv
-  fi
-  if [[ $(venvcurrent) != *$(pwdtail)* ]]; then
-    echo "Setting virtualenv"
-  	venv
-  fi
-}
+alias mm="docksetup $MM_PATH $MM_MACHINE_NAME"
 alias mmstart='mm && docker-compose up'
 alias mmstartdb='mm && docker-compose up db'
 alias mmstartdbelastic='mm && docker-compose up db elastic'
@@ -484,17 +558,8 @@ mmdbfilledout() {
   mmdbrun "update profiles_profile set filled_out = 't' where edx_name = 'staff';"
 }
 alias mmtest='./test_suite.sh'
-alias mmtestjs='./js_test.sh'
-alias mmlintjs=lintjs
 alias mmtestfull='docker-compose run watch npm test && docker-compose run watch npm run-script lint'
 alias mmtestsuite='. ./test_suite.sh'
-alias mmflow=flowjs
-alias mmlintpy=lintpy
-alias mmtestpy=testpy
-alias mmtestcfgminimal=testcfgminimal
-alias mmtestcfgrevert=testcfgrevert
-alias mmtestpymin=testpymin
-alias mmtestpyminkeep=testpyminkeep
 alias mmtoxenv='. .tox/py35/bin/activate'
 alias mmdjangodebug='cp $CODESNIP/settingsfiles/.env_django_debug ~/dev/micromasters/.env'
 alias mmdjangowarning='cp $CODESNIP/settingsfiles/.env_django_warning ~/dev/micromasters/.env'
@@ -512,23 +577,7 @@ alias bootenv="dockenv $BOOTCAMP_MACHINE_NAME"
 alias bootstartmachine="docker-machine start $BOOTCAMP_MACHINE_NAME"
 alias bootsetup='bootstartmachine; bootenv'
 alias bootrestart="dockrestart $BOOTCAMP_MACHINE_NAME"
-bootcamp() {
-  if [ $(pwd) != "$BOOTCAMP_PATH" ]; then
-    echo "Changing directory to $BOOTCAMP_PATH"
-	cd $BOOTCAMP_PATH
-  fi
-  if [ $(docker-machine status $BOOTCAMP_MACHINE_NAME) != "Running" ]; then
-    bootstartmachine
-  fi
-  if [ "$DOCKER_MACHINE_NAME" != "$BOOTCAMP_MACHINE_NAME" ]; then
-    echo "Setting docker env variables"
-	bootenv
-  fi
-  if [[ $(venvcurrent) != *$(pwdtail)* ]]; then
-    echo "Setting virtualenv"
-  	venv
-  fi
-}
+alias bootcamp="docksetup $BOOTCAMP_PATH $BOOTCAMP_MACHINE_NAME"
 alias bootstart='bootcamp && docker-compose up'
 alias bootstartdec='bootcamp && docker-compose up db elastic celery'
 alias bcamp=bootcamp
@@ -537,7 +586,7 @@ bootmanage() {
 	bootcamp && docker-compose run web ./manage.py $@
 }
 alias bootshell='bootmanage shell'
-alias bootnb='bootcamp && dockdbport -s && jupyter notebook bootcamp.ipynb --log-level=ERROR'
+alias bootnb="startnb $BOOTCAMP_MACHINE_NAME"
 alias boottestjs='./scripts/test/js_test.sh'
 bootdb() { 
   bootenv && dbconnect
@@ -546,9 +595,38 @@ bootdbrun() {
   bootenv && dbrun $@
 }
 
-# Random startup
-alias edxstart='cd ~/dev/edx_devstack && vup && vssh'
-alias edxstartfresh='cd ~/dev/edx_devstack && vhalt && vup && vssh'
+# REDDIT/REDDIT-CONFIG
+alias redditrebuild="pushd $REDDIT_CONF_PATH && vagrant reload && vagrant provision && popd"
+alias redditrestart="vagrant ssh -c 'sudo reddit-restart'"
+alias redditlasterror="vagrant ssh -c \"sudo tac /var/log/upstart/reddit-paster.log | grep -m 1 'Debug at:' | grep -Eo 'http[^\s]*'\""
+alias redditstatus='curl -s --head "http://reddit.local/" --connect-timeout 3 | head -n 1'
+alias redditrunning='redditstatus | grep -o "200 OK"'
+
+# OPEN-DISCUSSIONS
+export OPDISC_MACHINE_NAME='opdisc'
+alias opdisc="docksetup $OPDISC_PATH $OPDISC_MACHINE_NAME"
+alias odstart="docker-machine start $OPDISC_MACHINE_NAME"
+odsmartstart() {
+  local rstatus=$(redditstatus)
+  if [ -z $rstatus ]; then
+    echo "Reddit not running locally. Restarting VM..."
+    redditrebuild
+  else
+    local running=$(echo $rstatus | grep -o "200 OK")
+    if [ -z $running ]; then
+      echo "Reddit server status: [$rstatus]. Restarting server..."
+      redditrestart
+    fi
+  fi
+  docker-machine start $OPDISC_MACHINE_NAME
+  docker-compose up
+}
+
+# ODL-VIDEO-SERVICE
+export OVS_MACHINE_NAME='ovs'
+alias ovs="docksetup $OVS_PATH $OVS_MACHINE_NAME"
+alias ovsstart="docker-machine start $OVS_MACHINE_NAME"
+alias ovsnb="startnb $OVS_MACHINE_NAME"
 
 # Pythonz setup
 [[ -s $HOME/.pythonz/etc/bashrc ]] && source $HOME/.pythonz/etc/bashrc

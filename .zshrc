@@ -111,11 +111,11 @@ alias gcmtundo='git reset --soft HEAD~'
 alias gpsh='git push'
 
 alias gmasterremote='git config "branch.master.remote"'
-gcurbranchremotename() {
+gcurbranchremotewithname() {
   git for-each-ref --format='%(upstream:short)' $(git symbolic-ref -q HEAD)
 }
 gcurbranchremote() {
-  local remotewithname=$(gcurbranchremotename)
+  local remotewithname=$(gcurbranchremotewithname)
   if [ ! -z "$remotewithname" ]; then
     echo $remotewithname | cut -d/ -f1
   else
@@ -195,9 +195,8 @@ gnbcur() {
 alias gresall='git checkout .'
 alias gresfile='git checkout --'
 alias gres=gresfile
-gresorigin() {
-  curbranch=$(gcurbranch)
-  git reset --hard "origin/$curbranch"
+gresremote() {
+  git reset --hard $(gcurbranchremotewithname)
 }
 gstash() {
   if [ -z "$1" ]; then
@@ -258,6 +257,7 @@ alias vup="vagrant up"
 alias vssh="vagrant ssh"
 alias vupssh="vagrant up && vagrant ssh"
 alias vhalt="vagrant halt"
+alias vrelprov="vagrant reload && vagrant provision"
 
 ### virtualenv
 venv() {
