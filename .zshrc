@@ -3,14 +3,14 @@
 # Env variables to set in ~/.zshrc:
 #   PATH, DEVPATH
 
-setclobber() { 
-  setopt clobber 
-}
-setnoclobber() { 
-  setopt noclobber
-}
+setclobber() { setopt clobber }
+setnoclobber() { setopt noclobber }
+
 setopt interactivecomments
 setnoclobber
+# Unset option to change dir if command doesn't exist, but dir of the same name does exist
+# Unsetting b/c this can cause problems with console_scripts entry points in python setup.py
+unsetopt AUTO_CD
 
 export RCFILE="$HOME/.zshrc"
 export RCMEFILE="$DEVPATH/dotfiles/.zshrcme"
@@ -68,6 +68,9 @@ alias qfind="find . -name "                 # qfind:    Quickly search for file
 ff () { /usr/bin/find . -name "$@" ; }      # ff:       Find file under the current directory
 ffs () { /usr/bin/find . -name "$@"'*' ; }  # ffs:      Find file whose name starts with a given string
 ffe () { /usr/bin/find . -name '*'"$@" ; }  # ffe:      Find file whose name ends with a given string
+
+alias urldecode='python -c "import sys; import urllib.parse; print(urllib.parse.unquote(sys.argv[1]))"'
+alias linebreaktobackslashn='awk ''{printf "%s\\n", $0}'''
 
 ### git
 alias gs="git status"
