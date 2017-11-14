@@ -15,6 +15,8 @@ export BOOTCAMP_PATH="$DEVPATH/bootcamp-ecommerce"
 export SANDBOX_PATH="$DEVPATH/sandbox"
 export OPDISC_PATH="$DEVPATH/open-discussions"
 export OVS_PATH="$DEVPATH/odl-video-service"
+export EDX_FICUS_PATH="$DEVPATH/edx_devstack_ficus"
+export EDX_GINKGO_PATH="$DEVPATH/edx_devstack_ginkgo"
 export RDEVPATH="$HOME/devreddit"
 export REDDIT_CONF_PATH="$RDEVPATH/reddit-config"
 export REDDIT_PATH="$RDEVPATH/reddit"
@@ -22,12 +24,14 @@ export XQUEUE_VAGRANT_PATH="$DEVPATH/mitodlfork/xqueue-vagrant/"
 export XQUEUE_EDX_VAGRANT_PATH="$DEVPATH/xqueue-vagrant/"
 export XQUEUE_WATCHER_CFG_PATH="$DEVPATH/mitodlfork/xqueue-watcher-config/"
 export XQUEUE_WATCHER_SRC_PATH="$DEVPATH/mitodlfork/xqueue-watcher-config/xqueue-watcher/"
+export SALTSTACK_SANDBOX_PATH="$DEVPATH/salt-essentials-utils"
 alias cdmic="cd $MM_PATH"
 alias cdm=cdmic
 alias cdboot="cd $BOOTCAMP_PATH"
 alias cdsandbox="cd $SANDBOX_PATH"
 alias cdovs="cd $OVS_PATH"
-alias cdedx="cd $DEVPATH/edx_devstack"
+alias cdedxf="cd $EDX_FICUS_PATH"
+alias cdedxg="cd $EDX_GINKGO_PATH"
 alias cdrdev="cd $RDEVPATH"
 alias cdopdisc="cd $OPDISC_PATH"
 alias cdredcon="cd $REDDIT_CONF_PATH"
@@ -35,6 +39,7 @@ alias cdxqueuevagrant="cd $XQUEUE_VAGRANT_PATH"
 alias cdxqueueedxvagrant="cd $XQUEUE_EDX_VAGRANT_PATH"
 alias cdxqueuewatch="cd $XQUEUE_WATCHER_CFG_PATH"
 alias cdxqueuewatchsrc="cd $XQUEUE_WATCHER_SRC_PATH"
+alias cdsaltsandbox="cd $SALTSTACK_SANDBOX_PATH"
 
 # Virtualenv settings
 export VIRTUALENV_PYTHON=/usr/local/bin/python3
@@ -496,8 +501,10 @@ dbrun() {
 }
 
 # EDX
-alias edxstart='cd ~/dev/edx_devstack && vup && vssh'
-alias edxstartfresh='cd ~/dev/edx_devstack && vhalt && vup && vssh'
+alias edxfstart='cd $EDX_FICUS_PATH && vup && vssh'
+alias edxfstartfresh='cd $EDX_FICUS_PATH && vhalt && vup && vssh'
+alias edxgstart='cd $EDX_GINKGO_PATH && vup && vssh'
+alias edxgstartfresh='cd $EDX_GINKGO_PATH && vhalt && vup && vssh'
 
 # MICROMASTERS
 export MM_MACHINE_NAME='mm'
@@ -509,14 +516,14 @@ alias mm="docksetup $MM_PATH $MM_MACHINE_NAME"
 alias mmstart='mm && docker-compose up'
 alias mmstartdb='mm && docker-compose up db'
 alias mmstartdbelastic='mm && docker-compose up db elastic'
-alias mmstartdec='mm && docker-compose up db elastic celery'
+alias mmstartnonweb='mm && docker-compose up db elastic celery redis sftp'
 alias mmstartweb='mm && docker-compose run --service-ports web'
 alias mmstartwebnginx='mm && docker-compose up nginx web'
-alias mmstartwebpdb='docker-compose run --service-ports web ./manage.py runserver 0.0.0.0:8077'
+alias mmwebpdb='docker-compose run --service-ports web ./manage.py runserver 0.0.0.0:8077'
 alias mmweb=mmstartweb
 alias mmwebnginx=mmstartwebnginx
 alias mmdbelastic=mmstartdbelastic
-alias mmdec=mmstartdec
+alias mmnonweb=mmstartnonweb
 mmmanage() {
 	mm && docker-compose run web ./manage.py $@
 }
@@ -637,6 +644,11 @@ export OVS_MACHINE_NAME='ovs'
 alias ovs="docksetup $OVS_PATH $OVS_MACHINE_NAME"
 alias ovsstart="docker-machine start $OVS_MACHINE_NAME"
 alias ovsnb="startnb $OVS_MACHINE_NAME"
+
+# SALTSTACK LOCAL STUFF
+export SALTSTACK_SANDBOX_VM_PATH="$SALTSTACK_SANDBOX_PATH/virtual-machines"
+alias cdsaltsandvagrant="cd $SALTSTACK_SANDBOX_VM_PATH"
+alias saltsandup="cdsaltsandvagrant && vagrant up"
 
 # Pythonz setup
 [[ -s $HOME/.pythonz/etc/bashrc ]] && source $HOME/.pythonz/etc/bashrc
