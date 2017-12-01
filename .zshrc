@@ -73,6 +73,7 @@ alias urldecode='python -c "import sys; import urllib.parse; print(urllib.parse.
 alias linebreaktobackslashn='awk ''{printf "%s\\n", $0}'''
 
 ### git
+export PREFERRED_REMOTE_CONFIG='preferred.remote'
 alias gs="git status"
 alias gss="git status -s"
 alias ga='git add'
@@ -89,10 +90,10 @@ gchfile() {
   local filepath=''
   if (( $# < 2 )); then
     filebranch="origin/master"
-	filepath="$1"
+	  filepath="$1"
   else
   	filebranch="$1"
-	filepath="$2"
+	  filepath="$2"
   fi
   git checkout "$filebranch" "$filepath"
 }
@@ -113,9 +114,23 @@ grecmt() {
 alias gcmtundo='git reset --soft HEAD~'
 alias gpsh='git push'
 
+gbranchremote() {
+  if [ -z $1 ]; then
+    echo "Need to provide a branch name to determine the remote"
+    return 1
+  fi
+  ### git branch -vv example output (space btwn branch name and 10-char hash is a tab)
+  ###   with remote: "  mybranch 10a997fced [origin/mybranch] Commit msg"
+  ###   without remote: "* mybranch 89207183cb Commit msg"
+  git branch -vv | grep -E "^\*?\s+$1\s+" | perl -nle '/^\*?\s+([^\s]+)[\s\w]+\[([^\s]+)\]/; print "$2" if $2;'
+}
 alias gmasterremote='git config "branch.master.remote"'
 gcurbranchremotewithname() {
   git for-each-ref --format='%(upstream:short)' $(git symbolic-ref -q HEAD)
+  ### ALTERNATE ###
+  ### git status -sb --> "## mybranch...origin/mybranch" if upstream exists
+  ### git status -sb --> "## mybranch" if upstream does not exist
+  # git status -sb | perl -nle '/\.{3}(.*)$/; print "$1";'
 }
 gcurbranchremote() {
   local remotewithname=$(gcurbranchremotewithname)
@@ -130,12 +145,17 @@ gpshu() {
   if [ -z "$curbranchremote" ]; then
     local remote=""
     if [ -z "$1" ]; then
-      remote=$(gmasterremote)
-      if [ -z "$remote" ]; then
-        echo "No remote provided, and no remote set for master"
-        exit 1
+      local preferredremote=$(git config "$PREFERRED_REMOTE_CONFIG")
+      if [ ! -z "$preferredremote" ]; then
+        remote=$preferredremote
+        echo "Using preferred remote set in .git/config: '$remote'"
       else
-        echo "Using remote '$remote'"
+        remote=$(gmasterremote)
+        if [ -z "$remote" ]; then
+          echo "No remote provided, and no remote set for master"
+          return 1
+        fi
+        echo "Using master branch remote: '$remote'"
       fi
     else
       remote=$1
@@ -145,21 +165,20 @@ gpshu() {
     gpsh
   fi
 }
-
 gdiff() {
   if (( $# < 1 )); then
     git diff HEAD
   else
     if (($# == 1)); then
-	  single_digit_match=$(echo "$1" | grep -Eo '^\d$')
-	  if [ ! -z "$single_digit_match" ]; then
-	    git diff "HEAD~$1"
+	    single_digit_match=$(echo "$1" | grep -Eo '^\d$')
+	    if [ ! -z "$single_digit_match" ]; then
+	      git diff "HEAD~$1"
+	    else
+	      git diff $@
+	    fi
 	  else
 	    git diff $@
 	  fi
-	else
-	  git diff $@
-	fi
   fi
 }
 gdiffmaster() {
@@ -243,6 +262,29 @@ gchtheirs() {
     echo "Need file as param"; return
   fi
   gchkeepfile "theirs" "$1"
+}
+gbranchdelete() {
+  if [ -z "$1" ]; then
+    echo "Need branch name as param"; return
+  elif [[ "$1" == "$(gcurbranch)" ]]; then
+    echo "Please check out a different branch before deleting this one"; return
+  fi
+  local message="Are you sure that you want to delete this branch ($1)?"
+  local branchremote=$(gbranchremote $1)
+  if [ ! -z $branchremote ]; then
+    message="$message\n* THIS WILL ALSO DELETE THE REMOTE BRANCH THAT THIS LOCAL BRANCH IS TRACKING *"
+  fi
+  echo -e "$message"
+  read -q "REPLY?Enter [yY] to confirm: "
+  echo
+  case "$REPLY" in
+    y|Y ) echo "Deleting branch...";;
+    * ) echo "NOT DELETING" && return;;
+  esac
+  git branch -d $1
+  if [ ! -z $branchremote ]; then
+    git push origin ":$1"
+  fi
 }
 
 ### pip

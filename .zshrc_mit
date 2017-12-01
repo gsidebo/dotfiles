@@ -20,10 +20,11 @@ export EDX_GINKGO_PATH="$DEVPATH/edx_devstack_ginkgo"
 export RDEVPATH="$HOME/devreddit"
 export REDDIT_CONF_PATH="$RDEVPATH/reddit-config"
 export REDDIT_PATH="$RDEVPATH/reddit"
+export XQUEUE_DOCKER_PATH="$DEVPATH/mitodlfork/xqueue-docker/"
 export XQUEUE_VAGRANT_PATH="$DEVPATH/mitodlfork/xqueue-vagrant/"
 export XQUEUE_EDX_VAGRANT_PATH="$DEVPATH/xqueue-vagrant/"
-export XQUEUE_WATCHER_CFG_PATH="$DEVPATH/mitodlfork/xqueue-watcher-config/"
-export XQUEUE_WATCHER_SRC_PATH="$DEVPATH/mitodlfork/xqueue-watcher-config/xqueue-watcher/"
+export XQUEUE_WATCHER_CFG_PATH="$DEVPATH/mitodlfork/xqueue-watcher-docker/"
+export XQUEUE_WATCHER_SRC_PATH="$DEVPATH/mitodlfork/xqueue-watcher-docker/xqueue-watcher/"
 export SALTSTACK_SANDBOX_PATH="$DEVPATH/salt-essentials-utils"
 alias cdmic="cd $MM_PATH"
 alias cdm=cdmic
@@ -32,9 +33,11 @@ alias cdsandbox="cd $SANDBOX_PATH"
 alias cdovs="cd $OVS_PATH"
 alias cdedxf="cd $EDX_FICUS_PATH"
 alias cdedxg="cd $EDX_GINKGO_PATH"
+alias cdedx=cdedxg
 alias cdrdev="cd $RDEVPATH"
 alias cdopdisc="cd $OPDISC_PATH"
 alias cdredcon="cd $REDDIT_CONF_PATH"
+alias cdxqueue="cd $XQUEUE_DOCKER_PATH"
 alias cdxqueuevagrant="cd $XQUEUE_VAGRANT_PATH"
 alias cdxqueueedxvagrant="cd $XQUEUE_EDX_VAGRANT_PATH"
 alias cdxqueuewatch="cd $XQUEUE_WATCHER_CFG_PATH"
@@ -87,6 +90,7 @@ alias pynb="pynbhere --notebook-dir=$SANDBOX_PATH"
 # Simple Git shortcuts
 alias gchrelease='git checkout release'
 alias gchrc='git checkout release-candidate'
+alias gchginkgo='git checkout mitx/ginkgo'
 
 # Git magic
 export GITHUB_URL="https://github.com"
@@ -293,24 +297,24 @@ gsquash() {
   else
     commitmsg=''
     if (( $# < 1 )); then
-	  curbranchprtitle=$(gcurbranchprinfo | jq -r 'if . | length == 0 then "" else .[0]["title"] end')
-	  if [ -z "$curbranchprtitle" ]; then
-	    # Get the commit hash for the first commit after the merge-base
-	    first_branch_commit=$(git log --format=%H | tr '\n' ',' | grep -Eo "\w+,$branch_parent_commit" | grep -Eo "^[^,]+")
-		# Get the commit message
-		proposed_title=$(git show "$first_branch_commit" --format="%s" --no-patch)
-	  else
-	    proposed_title="$curbranchprtitle"
-	  fi
+	    curbranchprtitle=$(gcurbranchprinfo | jq -r 'if . | length == 0 then "" else .[0]["title"] end')
+	    if [ -z "$curbranchprtitle" ]; then
+	      # Get the commit hash for the first commit after the merge-base
+	      first_branch_commit=$(git log --format=%H | tr '\n' ',' | grep -Eo "\w+,$branch_parent_commit" | grep -Eo "^[^,]+")
+		  # Get the commit message
+	  	proposed_title=$(git show "$first_branch_commit" --format="%s" --no-patch)
+	    else
+	      proposed_title="$curbranchprtitle"
+	    fi
       read -q "REPLY?No message specified. Use the following? [$proposed_title]: "
-	  echo
-	  case "$REPLY" in
+	    echo
+	    case "$REPLY" in
         y|Y ) commitmsg="$proposed_title";;
         * ) echo "Need to specify a commit message. No squashy." && return;;
       esac
-	else
-	  commitmsg="$(echo $@)"
-	fi
+	  else
+	    commitmsg="$(echo $@)"
+	  fi
     git reset --soft "$branch_parent_commit"
     git commit -am "$commitmsg"
     #git push -fz
