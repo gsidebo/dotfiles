@@ -71,6 +71,7 @@ ffe () { /usr/bin/find . -name '*'"$@" ; }  # ffe:      Find file whose name end
 
 alias urldecode='python -c "import sys; import urllib.parse; print(urllib.parse.unquote(sys.argv[1]))"'
 alias linebreaktobackslashn='awk ''{printf "%s\\n", $0}'''
+alias uuidgensimple='uuidgen | tr "[:upper:]" "[:lower:]" | sed ''s/\-//g'''
 
 ### git
 export PREFERRED_REMOTE_CONFIG='preferred.remote'
