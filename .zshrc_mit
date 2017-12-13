@@ -15,6 +15,8 @@ export BOOTCAMP_PATH="$DEVPATH/bootcamp-ecommerce"
 export SANDBOX_PATH="$DEVPATH/sandbox"
 export OPDISC_PATH="$DEVPATH/open-discussions"
 export OVS_PATH="$DEVPATH/odl-video-service"
+export EDX_DOCKER_PATH="$DEVPATH/edx_devstack_docker/devstack"
+export EDX_DOCKER_SRC_PATH="$DEVPATH/edx_devstack_docker/edx-platform"
 export EDX_FICUS_PATH="$DEVPATH/edx_devstack_ficus"
 export EDX_GINKGO_PATH="$DEVPATH/edx_devstack_ginkgo"
 export RDEVPATH="$HOME/devreddit"
@@ -31,9 +33,11 @@ alias cdm=cdmic
 alias cdboot="cd $BOOTCAMP_PATH"
 alias cdsandbox="cd $SANDBOX_PATH"
 alias cdovs="cd $OVS_PATH"
+alias cdedxdock="cd $EDX_DOCKER_PATH"
+alias cdedxsrc="cd $EDX_DOCKER_SRC_PATH"
 alias cdedxf="cd $EDX_FICUS_PATH"
 alias cdedxg="cd $EDX_GINKGO_PATH"
-alias cdedx=cdedxg
+alias cdedx=cdedxdock
 alias cdrdev="cd $RDEVPATH"
 alias cdopdisc="cd $OPDISC_PATH"
 alias cdredcon="cd $REDDIT_CONF_PATH"
@@ -361,16 +365,20 @@ gdiffsnip() { gsnipchanges 'diff' $@; }
 
 # Docker functions and aliases
 dockenv() { eval "$(docker-machine env $1)" }
-alias docksshc='docker-machine ssh'
-alias docksshm='docker-compose run web bash'
-alias dockstop='docker-machine stop'
-alias dockrestart='docker-machine restart'
-alias dockstart='docker-machine start'
+alias dockunsetenv="unset DOCKER_TLS_VERIFY; unset DOCKER_CERT_PATH; unset DOCKER_MACHINE_NAME unset DOCKER_HOST;"
+alias docksshc='docker-compose run web bash'
 alias dockbuild='docker-compose build'
+alias dockstop='docker-compose stop'
+alias dockrestart='docker-compose restart'
 alias dockpause='docker-compose pause'
 alias dockunpause='docker-compose unpause'
+alias dockps='docker-compose ps'
 alias dockgetdbport="docker-compose ps | grep '_db' | grep -Eo '[^ ]+\s+$' | grep -Eo ':(\d+)' | cut -c 2-"
 alias dockup='docker-compose up'
+alias dockmstop='docker-machine stop'
+alias dockmrestart='docker-machine restart'
+alias dockstart='docker-machine start'
+alias docksshm='docker-machine ssh'
 alias dockregen='docker-machine regenerate-certs'
 dockdbport() {
 	export DOCK_DB_PORT=$(dockgetdbport)
@@ -505,6 +513,9 @@ dbrun() {
 }
 
 # EDX
+export DOCKER_COMPOSE_FILES="-f docker-compose.yml -f docker-compose-host.yml"
+export DEVSTACK_WORKSPACE="/Users/gavin/dev/edx_devstack_docker"
+# Vagrant VM legacy commands
 alias edxfstart='cd $EDX_FICUS_PATH && vup && vssh'
 alias edxfstartfresh='cd $EDX_FICUS_PATH && vhalt && vup && vssh'
 alias edxgstart='cd $EDX_GINKGO_PATH && vup && vssh'

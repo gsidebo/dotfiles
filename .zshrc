@@ -217,6 +217,7 @@ gnbcur() {
 }
 alias gresall='git checkout .'
 alias gresfile='git checkout --'
+### git reset HEAD $1 && git checkout -- $1
 alias gres=gresfile
 gresremote() {
   git reset --hard $(gcurbranchremotewithname)
