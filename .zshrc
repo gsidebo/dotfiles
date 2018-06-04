@@ -166,20 +166,15 @@ gpshu() {
     gpsh
   fi
 }
-gdiff() {
-  if (( $# < 1 )); then
-    git diff HEAD
+alias gdiff='git diff'
+alias gdiffnames='git diff --name-only'
+alias gdiffhead='git diff HEAD'
+gdiffn() {
+  single_digit_match=$(echo "$1" | grep -Eo '^\d$')
+  if [ ! -z "$single_digit_match" ]; then
+    git diff "HEAD~$1"
   else
-    if (($# == 1)); then
-	    single_digit_match=$(echo "$1" | grep -Eo '^\d$')
-	    if [ ! -z "$single_digit_match" ]; then
-	      git diff "HEAD~$1"
-	    else
-	      git diff $@
-	    fi
-	  else
-	    git diff $@
-	  fi
+    echo "Need to provide a number indicating the number of commits from HEAD you want to diff"
   fi
 }
 gdiffmaster() {
@@ -283,7 +278,7 @@ gbranchdelete() {
     y|Y ) echo "Deleting branch...";;
     * ) echo "NOT DELETING" && return;;
   esac
-  git branch -d $1
+  git branch -D $1
   if [ ! -z $branchremote ]; then
     git push origin ":$1"
   fi

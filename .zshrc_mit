@@ -1,4 +1,4 @@
-PATH="/usr/local/bin:/Library/Frameworks/Python.framework/Versions/2.7/bin:/Applications/Postgres.app/Contents/Versions/9.5/bin:${PATH}"
+PATH="/usr/local/bin:/Library/Frameworks/Python.framework/Versions/2.7/bin:/Applications/Postgres.app/Contents/Versions/9.5/bin:${PATH}:/usr/local/mysql/bin"
 # Remove duplicates from PATH
 PATH=$(echo "$PATH" | awk -v RS=':' -v ORS=":" '!a[$1]++' | sed 's/:$//' | tr -d '\n')
 export PATH
@@ -6,13 +6,16 @@ export PATH
 export EDITOR="/usr/local/bin/mate -w"
 export SCREENSHOTS='/Users/gavin/Screenshots'
 export CODESNIP='/Users/gavin/Code Snippets'
+export SNIP=$CODESNIP
 
 alias edit='charm'
 alias f='open -a Finder ./' # Opens current directory in MacOS Finder
+alias etchosts='sudo vim /etc/hosts'
 
 export MM_PATH="$DEVPATH/micromasters"
 export BOOTCAMP_PATH="$DEVPATH/bootcamp-ecommerce"
 export SANDBOX_PATH="$DEVPATH/sandbox"
+export SANDBOXBASH_PATH="$SANDBOX_PATH/bash"
 export OPDISC_PATH="$DEVPATH/open-discussions"
 export OVS_PATH="$DEVPATH/odl-video-service"
 export EDX_DOCKER_PATH="$DEVPATH/edx_devstack_docker/devstack"
@@ -32,6 +35,7 @@ alias cdmic="cd $MM_PATH"
 alias cdm=cdmic
 alias cdboot="cd $BOOTCAMP_PATH"
 alias cdsandbox="cd $SANDBOX_PATH"
+alias cdsandboxbash="cd $SANDBOXBASH_PATH"
 alias cdovs="cd $OVS_PATH"
 alias cdedxdock="cd $EDX_DOCKER_PATH"
 alias cdedxsrc="cd $EDX_DOCKER_SRC_PATH"
@@ -47,8 +51,10 @@ alias cdxqueueedxvagrant="cd $XQUEUE_EDX_VAGRANT_PATH"
 alias cdxqueuewatch="cd $XQUEUE_WATCHER_CFG_PATH"
 alias cdxqueuewatchsrc="cd $XQUEUE_WATCHER_SRC_PATH"
 alias cdsaltsandbox="cd $SALTSTACK_SANDBOX_PATH"
+alias cdside="cd $DEVPATH/sideprojects"
+alias cdlibs="cd $DEVPATH/sideprojects/mlibs"
 
-# Virtualenv settings
+### Virtualenv settings
 export VIRTUALENV_PYTHON=/usr/local/bin/python3
 export VIRTUALENVWRAPPER_PYTHON=$VIRTUALENV_PYTHON
 export VIRTUALENVWRAP_SH_PATH="/usr/local/bin/virtualenvwrapper.sh"
@@ -56,24 +62,34 @@ export WORKON_HOME=$HOME/.virtualenvs
 export PROJECT_HOME=$DEVPATH
 source "$VIRTUALENVWRAP_SH_PATH"
 
+### Docker devstack settings
+export CUSTOM_DEVSTACK_IMG_NAME='edxops/edxapp:gavin'
+export CUSTOM_DEVSTACK_PATH="/Users/gavin/dev/custom_docker/odl_devstack_tools"
+export DEVSTACK_CONTAINER_HELPER_DIR="/edx/app/edxapp/helper"
+export DEVSTACK_CONTAINER_MOUNT_DIR="/edx/app/edxapp/venvs/edxapp/src"
+export COMPOSE_HTTP_TIMEOUT=6000
+export USE_CUSTOM_DEVSTACK=1
+export DEFAULT_CUSTOM_DEVSTACK_COMPOSE_FILE="docker-compose-custom.yml"
+
+### Assorted utilities
 alias fixenter="stty sane"
 makegif() {
   palette="/tmp/palette.png"
   filters="fps=10,scale=600:-1:flags=bicubic"
   if (( $# < 2 )); then
     input="$1.mov"
-	output="$1.gif"
+	  output="$1.gif"
   else
     input="$1"
 	output="$2"
   fi
   if [ ! -f "$input" ] ; then
     input_temp="/Users/gavin/Screenshots/$input"
-	output_temp="/Users/gavin/Screenshots/$output"
-	if [ -f "$input_temp" ]; then
-	  input="$input_temp"
-	  output="$output_temp"
-	fi
+	  output_temp="/Users/gavin/Screenshots/$output"
+	  if [ -f "$input_temp" ]; then
+	    input="$input_temp"
+	    output="$output_temp"
+  	fi
   fi
   ffmpeg -v warning -i "$input" -vf "$filters,palettegen" -y $palette
   ffmpeg -v warning -i "$input" -i $palette -lavfi "$filters [x]; [x][1:v] paletteuse" -y "$output"
@@ -87,16 +103,30 @@ snippet() {
 }
 alias pastejson='pbpaste | jq .'
 alias pastejsoncopy='pbpaste | jq . | pbcopy'
+function ziptotar() {
+  local basefilename=$1
+  if [ -z $basefilename ] ; then
+    echo "Need a base filename"
+    return
+  fi
+  if [ -f "$basefilename.tar.gz" ] ; then
+    echo "$basefilename.tar.gz already exists"
+    return
+  fi
+  extract "$basefilename.zip"
+  tar -czvf "$basefilename.tar.gz" $basefilename
+  rm -rf "$basefilename/"
+}
 
 alias pynbhere='jupyter notebook'
 alias pynb="pynbhere --notebook-dir=$SANDBOX_PATH"
 
-# Simple Git shortcuts
+### Simple Git shortcuts
 alias gchrelease='git checkout release'
 alias gchrc='git checkout release-candidate'
 alias gchginkgo='git checkout mitx/ginkgo'
 
-# Git magic
+### Git magic
 export GITHUB_URL="https://github.com"
 export GITHUB_API_URL="https://api.github.com"
 export GIT_AUTHOR_LABEL_NAME="Waiting on Author"
@@ -339,6 +369,7 @@ gtagrelease() {
   git tag -a -m "Release $tag" "v$tag"
   # git push --follow-tags
 }
+alias greb='git fetch && git rebase'
 alias grebmaster='git fetch && git rebase origin/master'
 alias grebabort='git rebase --abort'
 alias grebcontinue='git rebase --continue'
@@ -362,8 +393,7 @@ gsnipchanges() {
 gpatchsnip() { gsnipchanges 'patch' $@; }
 gdiffsnip() { gsnipchanges 'diff' $@; }
 
-
-# Docker functions and aliases
+### Docker functions and aliases
 dockenv() { eval "$(docker-machine env $1)" }
 alias dockunsetenv="unset DOCKER_TLS_VERIFY; unset DOCKER_CERT_PATH; unset DOCKER_MACHINE_NAME unset DOCKER_HOST;"
 alias docksshc='docker-compose run web bash'
@@ -409,7 +439,41 @@ docksetup() {
   fi
 }
 alias vboxprocesses="ps xao pid,command | grep 'VBox' | grep -v 'grep'"
-startnb() {
+dockip() {
+  local machinename
+  if [ ! -z $1 ]; then
+    machinename="$1"
+  else
+    machinename="$DOCKER_MACHINE_NAME"
+  fi
+  docker-machine ip $machinename; 
+}
+dockdbport() { docker-compose ps | grep '_db' | perl -nle '/[0-9\.]*:(\d+)/ && print "$1";' }
+docknginxport() {
+  # hacky af, bruh
+  cat docker-compose.yml | grep 'nginx:' -A 15 | grep 'ports:' -A 1 | head -2 | tail -1 | perl -nle '/(\d+)\"/ && print "$1";'
+}
+dockwebport() {
+  cat docker-compose.yml | yq '.["services"]["web"]["ports"][0]' | perl -nle '/([0-9]+):/ && print "$1"';
+}
+alias dockwebmanage='docker-compose run web ./manage.py'
+alias dockwebshell='docker-compose run web ./manage.py shell'
+openrunning() {
+  local runningmachine
+  if [ ! -z $1 ]; then
+    runningmachine=$1
+  else
+    runningmachine=$DOCKER_MACHINE_NAME
+  fi
+  local machineip=$(docker-machine ip $runningmachine)
+  local webappport=$(docknginxport)
+  if [[ -z $machineip || -z $runningmachine || -z $webappport ]]; then
+    echo "Error - Missing one of the following: running machine ($runningmachine), IP ($machineip), port ($webappport)"
+    return
+  fi
+  open "http://$machineip:$webappport"
+}
+startdocknb() {
   local machinename=$1
   local notebookname
   local notebookpath
@@ -428,37 +492,151 @@ startnb() {
   fi
   docksetup . $machinename && dockdbport -s && jupyter notebook $notebookname.ipynb --log-level=ERROR
 }
-dockip() {
-  local machinename
-  if [ ! -z $1 ]; then
-    machinename="$1"
-  else
-    machinename="$DOCKER_MACHINE_NAME"
-  fi
-  docker-machine ip $machinename; 
-}
-dockdbport() { docker-compose ps | grep '_db' | perl -nle '/[0-9\.]*:(\d+)/ && print "$1";' }
-docknginxport() {
-  # hacky af, bruh
-  cat docker-compose.yml | grep 'nginx:' -A 15 | grep 'ports:' -A 1 | head -2 | tail -1 | perl -nle '/(\d+)\"/ && print "$1";'
-}
-openrunning() {
-  local runningmachine
-  if [ ! -z $1 ]; then
-    runningmachine=$1
-  else
-    runningmachine=$DOCKER_MACHINE_NAME
-  fi
-  local machineip=$(docker-machine ip $runningmachine)
-  local webappport=$(docknginxport)
-  if [[ -z $machineip || -z $runningmachine || -z $webappport ]]; then
-    echo "Error - Missing one of the following: running machine ($runningmachine), IP ($machineip), port ($webappport)"
-    return
-  fi
-  open "http://$machineip:$webappport"
+dockrmruncontainers() {
+  docker rm $(docker ps -a | grep "_run_" | perl -nle '/^(\w+)/ && print "$1";')
 }
 
-# Node stuff
+### Docker edX devstack commands
+alias dedxcustomimagebuild="docker build $CUSTOM_DEVSTACK_PATH -t $CUSTOM_DEVSTACK_IMG_NAME --no-cache"
+function getservicefromargs() {
+  # These docker-compose helper functions below assume that flags can be passed in along with
+  # a single service name. If a string is found that isn't a flag (i.e.: doesn't start with '-'),
+  # it's assumed that is the service name.
+  for arg in "$@"; do
+    if  [[ $arg != -* ]]; then
+        echo $arg; return
+    fi
+  done
+}
+function dedxup() {
+  local servicename=$(getservicefromargs $@)
+  local compose_file_args=()
+  local flags=()
+  # Run as detached by default
+  flags+=('-d')
+  
+  # Add custom compose file(s) to docker-compose params if it's set and the file exists
+  if [ ! -z $USE_CUSTOM_DEVSTACK ]; then
+    compose_file_args+=( '-f' "$CUSTOM_DEVSTACK_PATH/$DEFAULT_CUSTOM_DEVSTACK_COMPOSE_FILE" )
+    if [ ! -z $CUSTOM_DEVSTACK_COMPOSE_FILE ]; then
+      compose_file_args+=( '-f' "$CUSTOM_DEVSTACK_PATH/$CUSTOM_DEVSTACK_COMPOSE_FILE" )
+    fi
+    for compose_file_arg in "${compose_file_args[@]}"
+    do
+      if [ $compose_file_arg != '-f' ]; then
+        echo -e "Using additional compose file (\033[1;92m$compose_file_arg\e[0m) ..."
+      fi
+    done
+    echo ''
+  fi
+  
+  # Change docker-compose flags according to the arguments passed into this function
+  for arg in "$@"; do
+    # Running docker-compose in detached mode ('-d') by default. If '--attach' is passed in,
+    # remove that parameter
+    if  [[ $arg == "--attach" ]]; then
+      flags=( "${flags[@]/-d}" )
+    # All other flags should be added to the command exactly as they were passed into this function
+    elif [[ $arg == -* ]]; then
+      flags+=( $arg )
+    fi
+  done
+  
+  docker-compose -f docker-compose.yml -f docker-compose-host.yml ${compose_file_args[@]} up ${flags[@]} $servicename
+}
+function dedxlog() { make $1-logs }
+function dedxlograw() { docker logs "edx.devstack.$1" -f --tail=500 }
+function dedxattach() { make $1-attach }
+function dedxuplog() {
+  local servicename=$(getservicefromargs $@)
+  dedxup $@
+  
+  # Wait until logs exist...
+  local idx=0
+  local lognoteof=$(docker logs "edx.devstack.$servicename" | tail -n 1 | grep -v 'Error grabbing logs: EOF')
+  while [ -z $lognoteof -a $idx -ne 5 ]; do
+    echo "Log not created yet. Retrying..."
+    lognoteof=$(docker logs "edx.devstack.$servicename" | tail -n 1 | grep -v 'Error grabbing logs: EOF')
+    idx=$(($idx + 1))
+    sleep 2
+  done
+  
+  make $servicename-logs
+}
+function dedxupattach() { local servicename=$(getservicefromargs $@); dedxup $@; make $servicename-attach }
+function dedxserverrestart() { make $1-restart }
+function dedxbashraw() {
+  docker exec -it "edx.devstack.$1" env TERM=$TERM bash
+}
+function dedxbash() {
+  make $1-shell
+}
+function dedxrun() {
+  local servicename="$1"; shift
+  docker exec -it "edx.devstack.$servicename" env TERM=$TERM bash -c "source /edx/app/edxapp/edxapp_env; . /edx/app/edxapp/nodeenvs/edxapp/bin/activate; . /edx/app/edxapp/venvs/edxapp/bin/activate; cd /edx/app/edxapp/edx-platform; $@"
+}
+function dedxdshell() {
+  local servicename=$1
+  local appname=$1
+  if [[ "$servicename" == "studio" ]]; then
+    appname="cms"
+  elif [[ "$servicename" == "cms" ]]; then
+    servicename="studio"
+  fi
+  dedxrun $servicename "python ./manage.py $appname --settings=devstack_docker shell" 
+}
+dedxfullstatic() {
+  local apps=( lms studio )
+  for app in "${apps[@]}"; do
+    docker-compose exec $app bash -c 'source /edx/app/edxapp/edxapp_env && cd /edx/app/edxapp/edx-platform && paver update_assets --settings devstack_docker'
+  done
+}
+function dedxprereq() { 
+  local apps=( lms studio )
+  if [ ! -z $1 ]; then
+    apps=( $1 )
+  fi
+  for app in "${apps[@]}"; do
+    docker-compose exec $app bash -c 'source /edx/app/edxapp/edxapp_env && cd /edx/app/edxapp/edx-platform && NO_PYTHON_UNINSTALL=1 paver install_prereqs'
+  done
+}
+function dedxdbupdate() {
+  local app=${1:-"lms"}
+  dedxrun $app 'NO_PREREQ_INSTALL=1 paver update_db --settings devstack_docker'
+}
+function dedxjsonconf() {
+  local servicename=$1
+  local filenamebase=$servicename
+  local conftype="env"
+  if [ ! -z $1 ]; then
+    if [[ "$1" == "studio" ]]; then
+      filenamebase="cms"
+    elif [[ "$1" == "cms" ]]; then
+      servicename="studio"
+    else
+      servicename="$1"
+      filenamebase="$1"
+    fi
+  fi
+  if [ ! -z $2 ]; then
+    conftype="$2"
+  fi
+  docker exec -it "edx.devstack.$servicename" /usr/bin/env bash -c "vim /edx/app/edxapp/$filenamebase.$conftype.json"
+}
+alias dedxlms="dedxup lms"
+alias dedxstudio="dedxup studio"
+alias dedxlmslog="make lms-logs"
+alias dedxstudiolog="make studio-logs"
+function dedxlmsrun() { dedxrun lms $@ }
+function dedxstudiorun() { dedxrun studio $@ }
+function dedxlmstestpy() {
+  dedxlmsrun "pytest $@ --disable-pytest-warnings"
+}
+alias dedxlmsdbupdate="dedxdbupdate lms"
+alias dedxlmssamlfix="dedxlmsrun 'pip uninstall python-saml dm.xmlsec.binding -y && pip install -r requirements/edx/post.txt'"
+alias dedxlmsreleasechange="dedxlmsdbupdate && make lms-static"
+
+### Node stuff
 alias webpack="./webpack_dev_server.sh"
 alias webpackinstall="./webpack_dev_server.sh --install"
 alias webpackinstallsass="npm rebuild node-sass --force && webpackinstall"
@@ -551,11 +729,13 @@ alias mmwebpack='mm && webpack'
 alias mmwebpackinstall='mm && webpackinstall'
 alias mmshell='mm && docker-compose run web ./manage.py shell'
 alias mmindex='mm && docker-compose run web ./manage.py recreate_index'
-alias mmseed='mm && docker-compose run web ./manage.py seed_db --staff-user=staff'
+mmseed() {
+  mm && docker-compose run web ./manage.py seed_db --staff-user=${1:-"staff"}
+}
 alias mmunseed='mm && docker-compose run web ./manage.py unseed_db'
 mmsearchindex() {
   if [ ! -z $1 ]; then
-    esquery="?q=$1"
+    esquery="q=$1"
   else
     esquery=""
   fi
@@ -628,11 +808,22 @@ bootdbrun() {
 }
 
 # REDDIT/REDDIT-CONFIG
-alias redditrebuild="pushd $REDDIT_CONF_PATH && vagrant reload && vagrant provision && popd"
+alias redditrun="pushd $REDDIT_CONF_PATH; vagrant up; popd"
+alias redditrebuild="pushd $REDDIT_CONF_PATH; vagrant reload && vagrant provision; popd"
 alias redditrestart="vagrant ssh -c 'sudo reddit-restart'"
 alias redditlasterror="vagrant ssh -c \"sudo tac /var/log/upstart/reddit-paster.log | grep -m 1 'Debug at:' | grep -Eo 'http[^\s]*'\""
-alias redditstatus='curl -s --head "http://reddit.local/" --connect-timeout 3 | head -n 1'
-alias redditrunning='redditstatus | grep -o "200 OK"'
+alias redditserverstatus='curl -s --head "http://reddit.local/" --connect-timeout 3 | head -n 1'
+alias redditrunning='redditserverstatus | grep -o "200 OK"'
+redditstatus() {
+  pushd $REDDIT_CONF_PATH
+  local vmrunning=$(vagrant status default | grep -Eo 'default\s+running\s\(')
+  popd
+  if [ -z $vmrunning ]; then
+    echo "Reddit Vagrant VM is not running"; return
+  fi
+  local serverstatus=$(redditserverstatus)
+  echo "Reddit server status: $serverstatus"
+}
 
 # OPEN-DISCUSSIONS
 export OPDISC_MACHINE_NAME='opdisc'
