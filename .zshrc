@@ -115,7 +115,7 @@ grecmt() {
 alias gcmtundo='git reset --soft HEAD~'
 alias gpsh='git push'
 
-gbranchremote() {
+gbranchremotewithname() {
   if [ -z $1 ]; then
     echo "Need to provide a branch name to determine the remote"
     return 1
@@ -124,6 +124,14 @@ gbranchremote() {
   ###   with remote: "  mybranch 10a997fced [origin/mybranch] Commit msg"
   ###   without remote: "* mybranch 89207183cb Commit msg"
   git branch -vv | grep -E "^\*?\s+$1\s+" | perl -nle '/^\*?\s+([^\s]+)[\s\w]+\[([^\s]+)\]/; print "$2" if $2;'
+}
+gbranchremote() { 
+  local remotewithname=$(gbranchremotewithname $1)
+  if [ ! -z "$remotewithname" ]; then
+    echo $remotewithname | cut -d/ -f1
+  else
+    echo ""
+  fi
 }
 alias gmasterremote='git config "branch.master.remote"'
 gcurbranchremotewithname() {
@@ -177,6 +185,7 @@ gdiffn() {
     echo "Need to provide a number indicating the number of commits from HEAD you want to diff"
   fi
 }
+alias gdiff1='gdiffn 1'
 gdiffmaster() {
   git diff origin/master.."$(gcurbranch)" $@
 }
@@ -267,7 +276,7 @@ gbranchdelete() {
     echo "Please check out a different branch before deleting this one"; return
   fi
   local message="Are you sure that you want to delete this branch ($1)?"
-  local branchremote=$(gbranchremote $1)
+  local branchremote=$(gbranchremotewithname $1)
   if [ ! -z $branchremote ]; then
     message="$message\n* THIS WILL ALSO DELETE THE REMOTE BRANCH THAT THIS LOCAL BRANCH IS TRACKING *"
   fi
@@ -281,6 +290,32 @@ gbranchdelete() {
   git branch -D $1
   if [ ! -z $branchremote ]; then
     git push origin ":$1"
+  fi
+}
+gbranchrename() {
+  local branchfrom
+  local branchto
+  if (( $# < 1 )); then
+    echo "Need one or two branches as params"
+    return
+  elif (( $# < 2 )); then
+    branchfrom=$(gcurbranch)
+    branchto="$1"; shift
+  else
+    branchfrom="$1"; shift
+    branchto="$1"; shift
+  fi
+  if [[ "$branchfrom" == "master" ]]; then
+    echo "Attempting to rename the master branch. You probably don't want that. Exiting..."
+    return
+  fi
+  local branchremote=$(gbranchremote $branchfrom)
+  echo "Renaming branch $branchfrom to $branchto..."
+  git branch -m $branchfrom $branchto
+  if [ ! -z $branchremote ]; then
+    echo "Also renaming the remote branch (remote = $branchremote)..."
+    git push $branchremote :$branchfrom
+    git push --set-upstream $branchremote $branchto
   fi
 }
 

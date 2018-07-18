@@ -36,7 +36,6 @@ alias cdm=cdmic
 alias cdboot="cd $BOOTCAMP_PATH"
 alias cdsandbox="cd $SANDBOX_PATH"
 alias cdsandboxbash="cd $SANDBOXBASH_PATH"
-alias cdovs="cd $OVS_PATH"
 alias cdedxdock="cd $EDX_DOCKER_PATH"
 alias cdedxsrc="cd $EDX_DOCKER_SRC_PATH"
 alias cdedxf="cd $EDX_FICUS_PATH"
@@ -44,7 +43,9 @@ alias cdedxg="cd $EDX_GINKGO_PATH"
 alias cdedx=cdedxdock
 alias cdrdev="cd $RDEVPATH"
 alias cdopdisc="cd $OPDISC_PATH"
+alias cdo=cdopdisc
 alias cdredcon="cd $REDDIT_CONF_PATH"
+alias cdovs="cd $OVS_PATH"
 alias cdxqueue="cd $XQUEUE_DOCKER_PATH"
 alias cdxqueuevagrant="cd $XQUEUE_VAGRANT_PATH"
 alias cdxqueueedxvagrant="cd $XQUEUE_EDX_VAGRANT_PATH"
@@ -410,6 +411,12 @@ alias dockmrestart='docker-machine restart'
 alias dockstart='docker-machine start'
 alias docksshm='docker-machine ssh'
 alias dockregen='docker-machine regenerate-certs'
+alias dockwebmanage='docker-compose run web ./manage.py'
+alias dmanage=dockwebmanage
+alias dockwebshell='dockwebmanage shell'
+alias dshell=dockwebshell
+alias makemigration='dmanage makemigrations'
+migrate() { dmanage migrate $@; }
 dockdbport() {
 	export DOCK_DB_PORT=$(dockgetdbport)
     if [ -z "$1" ] || [ "$1" != '-s' ]; then
@@ -456,8 +463,6 @@ docknginxport() {
 dockwebport() {
   cat docker-compose.yml | yq '.["services"]["web"]["ports"][0]' | perl -nle '/([0-9]+):/ && print "$1"';
 }
-alias dockwebmanage='docker-compose run web ./manage.py'
-alias dockwebshell='docker-compose run web ./manage.py shell'
 openrunning() {
   local runningmachine
   if [ ! -z $1 ]; then
@@ -667,10 +672,6 @@ alias testpyminkeep='testpymin --keepmin'
 alias testjs="./scripts/test/js_test.sh"
 alias testjsroot="./js_test.sh"
 alias flowjs='npm run-script flow'
-dmanage() { docker-compose run web ./manage.py $@; }
-alias dshell='dmanage shell'
-alias makemigration='dmanage makemigrations'
-migrate() { dmanage migrate $@; }
 dbconnect() { psql -h $(dockip) -p $(dockdbport) -U postgres }
 dbrun() {
   local runcmd
@@ -808,9 +809,10 @@ bootdbrun() {
 }
 
 # REDDIT/REDDIT-CONFIG
-alias redditrun="pushd $REDDIT_CONF_PATH; vagrant up; popd"
+alias redditstart="pushd $REDDIT_CONF_PATH; vagrant up; popd"
+alias redditrun=redditstart
 alias redditrebuild="pushd $REDDIT_CONF_PATH; vagrant reload && vagrant provision; popd"
-alias redditrestart="vagrant ssh -c 'sudo reddit-restart'"
+alias redditrestart="pushd $REDDIT_CONF_PATH; vagrant ssh -c 'sudo reddit-restart'; popd"
 alias redditlasterror="vagrant ssh -c \"sudo tac /var/log/upstart/reddit-paster.log | grep -m 1 'Debug at:' | grep -Eo 'http[^\s]*'\""
 alias redditserverstatus='curl -s --head "http://reddit.local/" --connect-timeout 3 | head -n 1'
 alias redditrunning='redditserverstatus | grep -o "200 OK"'
