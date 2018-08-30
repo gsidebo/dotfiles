@@ -1,7 +1,21 @@
-PATH="/usr/local/bin:/Library/Frameworks/Python.framework/Versions/2.7/bin:/Applications/Postgres.app/Contents/Versions/9.5/bin:${PATH}:/usr/local/mysql/bin"
+PATH="/Library/Frameworks/Python.framework/Versions/2.7/bin:/Applications/Postgres.app/Contents/Versions/9.5/bin:${PATH}:/usr/local/mysql/bin"
 # Remove duplicates from PATH
 PATH=$(echo "$PATH" | awk -v RS=':' -v ORS=":" '!a[$1]++' | sed 's/:$//' | tr -d '\n')
 export PATH
+
+# Init pyenv and pyenv-virtualenv on shell startup
+eval "$(pyenv init -)"
+eval "$(pyenv virtualenv-init -)"
+
+### Virtualenv settings
+export VIRTUALENV_PYTHON=/usr/local/bin/python3
+export VIRTUALENVWRAPPER_PYTHON=$VIRTUALENV_PYTHON
+export VIRTUALENVWRAP_SH_PATH="/usr/local/bin/virtualenvwrapper.sh"
+export VIRTUALENVWRAPPER_SCRIPT=/usr/local/bin/virtualenvwrapper.sh
+export WORKON_HOME=$HOME/.virtualenvs
+export PROJECT_HOME=$DEVPATH
+### UNCOMMENT TO INITIALIZE VIRTUALENV ON SHELL STARTUP
+# source "$VIRTUALENVWRAP_SH_PATH"
 
 export EDITOR="/usr/local/bin/mate -w"
 export SCREENSHOTS='/Users/gavin/Screenshots'
@@ -22,6 +36,7 @@ export EDX_DOCKER_PATH="$DEVPATH/edx_devstack_docker/devstack"
 export EDX_DOCKER_SRC_PATH="$DEVPATH/edx_devstack_docker/edx-platform"
 export EDX_FICUS_PATH="$DEVPATH/edx_devstack_ficus"
 export EDX_GINKGO_PATH="$DEVPATH/edx_devstack_ginkgo"
+export RAPID_RESPONSE_PATH="$DEVPATH/rapid-response-xblock"
 export RDEVPATH="$HOME/devreddit"
 export REDDIT_CONF_PATH="$RDEVPATH/reddit-config"
 export REDDIT_PATH="$RDEVPATH/reddit"
@@ -41,6 +56,7 @@ alias cdedxsrc="cd $EDX_DOCKER_SRC_PATH"
 alias cdedxf="cd $EDX_FICUS_PATH"
 alias cdedxg="cd $EDX_GINKGO_PATH"
 alias cdedx=cdedxdock
+alias cdrapid="cd $RAPID_RESPONSE_PATH"
 alias cdrdev="cd $RDEVPATH"
 alias cdopdisc="cd $OPDISC_PATH"
 alias cdo=cdopdisc
@@ -54,14 +70,6 @@ alias cdxqueuewatchsrc="cd $XQUEUE_WATCHER_SRC_PATH"
 alias cdsaltsandbox="cd $SALTSTACK_SANDBOX_PATH"
 alias cdside="cd $DEVPATH/sideprojects"
 alias cdlibs="cd $DEVPATH/sideprojects/mlibs"
-
-### Virtualenv settings
-export VIRTUALENV_PYTHON=/usr/local/bin/python3
-export VIRTUALENVWRAPPER_PYTHON=$VIRTUALENV_PYTHON
-export VIRTUALENVWRAP_SH_PATH="/usr/local/bin/virtualenvwrapper.sh"
-export WORKON_HOME=$HOME/.virtualenvs
-export PROJECT_HOME=$DEVPATH
-source "$VIRTUALENVWRAP_SH_PATH"
 
 ### Docker devstack settings
 export CUSTOM_DEVSTACK_IMG_NAME='edxops/edxapp:gavin'
@@ -119,8 +127,11 @@ function ziptotar() {
   rm -rf "$basefilename/"
 }
 
-alias pynbhere='jupyter notebook'
-alias pynb="pynbhere --notebook-dir=$SANDBOX_PATH"
+pynbhere() {
+  local existing_notebook=$(ls | grep '.ipynb')
+  jupyter notebook $existing_notebook
+}
+alias pynb="jupyter notebook --notebook-dir=$SANDBOX_PATH"
 
 ### Simple Git shortcuts
 alias gchrelease='git checkout release'
@@ -139,7 +150,7 @@ gsetremote() {
   else
     branch=$(gcurbranch)
   fi
-  local git_remote=$(git config "branch.$branch.remote")
+  local git_remote=$(gbranchremote $branch)
   if [ -z "$git_remote" ]; then
     git_remote=$(git config "branch.master.remote")
     if [ -z "$git_remote" ]; then
@@ -310,6 +321,15 @@ alias gprlabelneeds=gprlabelreview
 gprlabelwaiting() {
   gprlabelset "$GIT_AUTHOR_LABEL_NAME" $1
 }
+gprnew () {
+  gsetapivalues
+  local curbranch=$(gcurbranch)
+  local remote=$(gbranchremote $curbranch)
+  if [ -z "$remote" ]; then
+    echo "Not tracking a remote branch; can't open a PR"; return
+  fi
+  open $GITHUB_URL/$github_owner/$github_repo/compare/master...$curbranch
+}
 gmyissues() {
   gsetapivalues && gh_api_call "search/issues?q=assignee:$GIT_USERNAME+repo:$github_owner/$github_repo+state:open" | jq '.["items"][] | {number: .["number"], title: .["title"], url: .["html_url"]} + if has("pull_request") then {is: "PULL REQUEST"} else {} end  + if (.["labels"] | any(.["name"] == "epic")) then {is: "EPIC"} else {} end'
 }
@@ -406,6 +426,7 @@ alias dockunpause='docker-compose unpause'
 alias dockps='docker-compose ps'
 alias dockgetdbport="docker-compose ps | grep '_db' | grep -Eo '[^ ]+\s+$' | grep -Eo ':(\d+)' | cut -c 2-"
 alias dockup='docker-compose up'
+alias dup=dockup
 alias dockmstop='docker-machine stop'
 alias dockmrestart='docker-machine restart'
 alias dockstart='docker-machine start'
@@ -415,6 +436,9 @@ alias dockwebmanage='docker-compose run web ./manage.py'
 alias dmanage=dockwebmanage
 alias dockwebshell='dockwebmanage shell'
 alias dshell=dockwebshell
+dockrestartuwsgi() {
+  docker-compose exec web bash -c "uwsgi --reload $(awk -F "=" '/pidfile/ {print $2}' uwsgi.ini)"
+}
 alias makemigration='dmanage makemigrations'
 migrate() { dmanage migrate $@; }
 dockdbport() {
@@ -654,8 +678,11 @@ alias webpackinstallsass="npm rebuild node-sass --force && webpackinstall"
 alias lintjs='docker-compose run watch npm run-script lint'
 alias lintsass='docker-compose run watch npm run-script scss_lint'
 alias lint='lintjs && lintsass'
+alias nfmt='npm run fmt'
 alias lintpy='docker-compose run web pylint'
-alias testpy='docker-compose run web tox'
+alias testpy='docker-compose run web tox -- --no-cov --disable-pytest-warnings --show-capture=no'
+alias testpyfull='docker-compose run web tox'
+alias dtox=testpy
 alias testcfgminimal='/bin/cp -f pytest_minimal.ini pytest.ini'
 alias testcfgrevert='git checkout origin/master pytest.ini'
 testpymin() {
@@ -669,8 +696,8 @@ testpymin() {
   fi
 }
 alias testpyminkeep='testpymin --keepmin'
-alias testjs="./scripts/test/js_test.sh"
-alias testjsroot="./js_test.sh"
+alias testjs="docker-compose run watch ./scripts/test/js_test.sh"
+alias testjsroot="docker-compose run watch ./js_test.sh"
 alias flowjs='npm run-script flow'
 dbconnect() { psql -h $(dockip) -p $(dockdbport) -U postgres }
 dbrun() {

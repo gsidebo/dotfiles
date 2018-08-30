@@ -81,6 +81,15 @@ alias ga='git add'
 alias gaa="git add --all"
 alias gb='git branch'
 alias gcurbranch='git rev-parse --abbrev-ref HEAD'
+gbranchremote() { 
+  local branch=''
+  if [ ! -z $1 ]; then
+    branch="$1"
+  else
+    branch=$(gcurbranch)
+  fi
+  git config "branch.$branch.remote" 
+}
 alias gch='git checkout'
 alias gch-='git checkout -'
 alias g-=gch-
@@ -221,6 +230,7 @@ gnbcur() {
 }
 alias gresall='git checkout .'
 alias gresfile='git checkout --'
+alias greshard='git reset --hard'
 ### git reset HEAD $1 && git checkout -- $1
 alias gres=gresfile
 gresremote() {
@@ -365,6 +375,10 @@ venvdelete() {
 venvcurrent() {
   echo "$VIRTUAL_ENV"
 }
+
+### pyenv-virtualenv
+pvenv() { pyenv activate $(pwdtail) }
+pvenvoff() { pyenv deactivate $(pwdtail) }
 
 ### Random util commands
 urlencode() {
