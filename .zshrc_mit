@@ -675,13 +675,13 @@ alias webpackinstallsass="npm rebuild node-sass --force && webpackinstall"
 ##############################################
 
 # General
-alias lintjs='docker-compose run watch npm run-script lint'
-alias lintsass='docker-compose run watch npm run-script scss_lint'
+alias lintjs='docker-compose run --rm watch npm run-script lint'
+alias lintsass='docker-compose run --rm watch npm run-script scss_lint'
 alias lint='lintjs && lintsass'
 alias nfmt='npm run fmt'
-alias lintpy='docker-compose run web pylint'
-alias testpy='docker-compose run web tox -- --no-cov --disable-pytest-warnings --show-capture=no'
-alias testpyfull='docker-compose run web tox'
+alias lintpy='docker-compose run --rm web pylint'
+alias testpy='docker-compose run --rm web tox -- --no-cov --disable-pytest-warnings --show-capture=no'
+alias testpyfull='docker-compose run --rm web tox'
 alias dtox=testpy
 alias testcfgminimal='/bin/cp -f pytest_minimal.ini pytest.ini'
 alias testcfgrevert='git checkout origin/master pytest.ini'
@@ -690,14 +690,14 @@ testpymin() {
   if [ ! -z "$1" ] && [ "$1" = '--keepmin' ]; then;
     keepmin="true"; shift
   fi
-  testcfgminimal && docker-compose run web tox $@;
+  testcfgminimal && docker-compose run --rm web tox $@;
   if [ -z "$keepmin" ]; then
   	testcfgrevert
   fi
 }
 alias testpyminkeep='testpymin --keepmin'
-alias testjs="docker-compose run watch ./scripts/test/js_test.sh"
-alias testjsroot="docker-compose run watch ./js_test.sh"
+alias testjs="docker-compose run --rm watch ./scripts/test/js_test.sh"
+alias testjsroot="docker-compose run --rm watch ./js_test.sh"
 alias flowjs='npm run-script flow'
 dbconnect() { psql -h $(dockip) -p $(dockdbport) -U postgres }
 dbrun() {

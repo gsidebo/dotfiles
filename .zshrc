@@ -13,11 +13,10 @@ setnoclobber
 unsetopt AUTO_CD
 
 export RCFILE="$HOME/.zshrc"
-export RCMEFILE="$DEVPATH/dotfiles/.zshrcme"
-rcload() { source $RCFILE; }
-rc() { vim $RCFILE && source $RCFILE; }
-rcme() { vim $RCMEFILE && source $RCMEFILE; }
-rcmeload() { source $RCMEFILE; }
+alias rcload="source $RCFILE"
+alias rc=rcload
+alias rcedit="vim $RCFILE && source $RCFILE"
+aliad rcmachineedit="vim $MYZSHRC && source $MYZSHRC"
 
 # Some pip installs require a C compiler to be aliased to "CC"
 export CC=gcc
