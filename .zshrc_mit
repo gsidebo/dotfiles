@@ -698,6 +698,7 @@ testpymin() {
 alias testpyminkeep='testpymin --keepmin'
 alias testjs="docker-compose run --rm watch ./scripts/test/js_test.sh"
 alias testjsroot="docker-compose run --rm watch ./js_test.sh"
+alias dwatchbash='docker-compose run --rm watch bash'
 alias flowjs='npm run-script flow'
 dbconnect() { psql -h $(dockip) -p $(dockdbport) -U postgres }
 dbrun() {

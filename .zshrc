@@ -16,7 +16,7 @@ export RCFILE="$HOME/.zshrc"
 alias rcload="source $RCFILE"
 alias rc=rcload
 alias rcedit="vim $RCFILE && source $RCFILE"
-aliad rcmachineedit="vim $MYZSHRC && source $MYZSHRC"
+alias rcmachineedit="vim $MYZSHRC && source $MYZSHRC"
 
 # Some pip installs require a C compiler to be aliased to "CC"
 export CC=gcc
