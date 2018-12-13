@@ -110,6 +110,7 @@ alias master=gchmaster
 alias gpll='git pull'
 alias gpull=gpll
 alias gfetch='git fetch'
+alias gunstageall='git reset'
 gcmt() {;git commit -am "$(echo $@)";}
 alias glastcmtmessage='git log -n 1 --format=format:%s'
 grecmt() {
@@ -121,6 +122,7 @@ grecmt() {
   git reset --soft HEAD~1 && gaa && gcmt "$cmtmessage"
 }
 alias gcmtundo='git reset --soft HEAD~'
+alias grecmtpsh='grecmt && gpsh -f'
 alias gpsh='git push'
 
 gbranchremotewithname() {
@@ -244,6 +246,13 @@ gstash() {
 }
 alias gstashp='git stash pop'
 alias gstashshow='git stash show'
+gstashdiff() {
+  local stashindex="0"
+  if [ ! -z "$1" ]; then
+    stashindex="$1"
+  fi
+  git stash show -p stash@\{$stashindex\}
+}
 gbranchfile () {
   if [ ! -z "$2" ]; then
     branch="$1"; shift
@@ -378,10 +387,19 @@ venvcurrent() {
 ### pyenv-virtualenv
 pvenv() { pyenv activate $(pwdtail) }
 pvenvoff() { pyenv deactivate $(pwdtail) }
+pvenvcreate() { pyenv virtualenv "${PWD##*/}" }
+pvenvdelete() { pyenv uninstall $(pwdtail) }
 
 ### Random util commands
-urlencode() {
-  python -c "import urllib, sys; print urllib.quote(sys.argv[1])" $1
+encodeforurl() {
+  if [ $# -eq 2 ]; then
+    python -c "import urllib.parse, sys; print(urllib.parse.urlencode({sys.argv[1]: sys.argv[2]}))" $1 $2
+  elif [ $# -eq 1 ]; then
+    python -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" $1
+  else
+    echo "Need 1 or 2 params"
+    return
+  fi
 }
 
 # Machine-specific stuff

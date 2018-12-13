@@ -70,6 +70,7 @@ alias cdxqueuewatchsrc="cd $XQUEUE_WATCHER_SRC_PATH"
 alias cdsaltsandbox="cd $SALTSTACK_SANDBOX_PATH"
 alias cdside="cd $DEVPATH/sideprojects"
 alias cdlibs="cd $DEVPATH/sideprojects/mlibs"
+alias cdcli="cd $DEVPATH/sandbox/cli_commands"
 
 ### Docker devstack settings
 export CUSTOM_DEVSTACK_IMG_NAME='edxops/edxapp:gavin'
@@ -126,12 +127,14 @@ function ziptotar() {
   tar -czvf "$basefilename.tar.gz" $basefilename
   rm -rf "$basefilename/"
 }
+alias vboxprocesses="ps xao pid,command | grep 'VBox' | grep -v 'grep'"
 
 pynbhere() {
   local existing_notebook=$(ls | grep '.ipynb')
   jupyter notebook $existing_notebook
 }
-alias pynb="jupyter notebook --notebook-dir=$SANDBOX_PATH"
+alias pynb="cd $SANDBOX_PATH && pvenv; jupyter notebook --notebook-dir=$SANDBOX_PATH"
+alias pynbopen="open http://localhost:8888"
 
 ### Simple Git shortcuts
 alias gchrelease='git checkout release'
@@ -226,9 +229,9 @@ gh_site_url_base() {
   gsetapivalues
   echo "$GITHUB_URL/$github_owner/$github_repo"
 }
-gmergetomaster() {
-  git checkout master && git pull && git merge $(gcurbranch)
-  git push
+gnewissue() {
+  gsetapivalues
+  open "$GITHUB_URL/$github_owner/$github_repo/issues/new"
 }
 gcurbranchprinfo() {
   gsetapivalues
@@ -237,6 +240,9 @@ gcurbranchprinfo() {
     params="&$1"
   fi
   curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls?head=$github_owner:$(gcurbranch)$params"
+}
+gcurbranchprnumber() {
+  gcurbranchprinfo | jq '.[0] | .number'
 }
 getissuefrombranch() {
   gcurbranch | grep -Eo '^[0-9]+'
@@ -413,6 +419,41 @@ gsnipchanges() {
 }
 gpatchsnip() { gsnipchanges 'patch' $@; }
 gdiffsnip() { gsnipchanges 'diff' $@; }
+gprbuildfail() {
+  local pr_num
+  if [ -z $1 ]; then
+    pr_num=$(gcurbranchprnumber)
+  else
+    pr_num=$1
+  fi
+  if [ -z $pr_num ]; then
+    echo "PR number was not provided and could not be determined"
+    return
+  fi
+  
+  local statuses_url
+  local build_url
+  local build_id
+  local failed_job_data
+  local num_failures
+  local job_id
+
+  gsetapivalues
+  statuses_url=$(curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls/$pr_num" | jq -r '.["statuses_url"]')
+  build_url=$(curl -s -u "$GIT_USERNAME:$GIT_TOKEN" $statuses_url | jq -r '[.[] | {state: .state, target_url: .target_url}] | map(select(.state == "failure")) | .[0]["target_url"]')
+  build_id=$(echo $build_url | perl -nle '/\/builds\/([0-9]+)/ && print "$1";')
+  # ... get list of id, env for failed jobs for the given build
+  failed_job_data=$(curl -s "https://api.travis-ci.org/builds/$build_id" | jq '[.["matrix"][] | {id: .id, config: .config, result: .result}] | map(select(.result == 1)) | [.[] | {id: .id, env: .config.env}]')
+  # ... get job log output...
+  num_failures=$(echo $failed_job_data | jq '. | length')
+  if [ $num_failures -eq 1 ]; then
+    job_id=$(echo $failed_job_data | jq '.[0] | .id')
+    curl -s -L "https://api.travis-ci.org/jobs/$job_id/log"
+  else
+    echo "Number of failures == $num_failures. This command is set up to handle 1 and only 1."
+  fi
+}
+
 
 ### Docker functions and aliases
 dockenv() { eval "$(docker-machine env $1)" }
@@ -426,7 +467,9 @@ alias dockunpause='docker-compose unpause'
 alias dockps='docker-compose ps'
 alias dockgetdbport="docker-compose ps | grep '_db' | grep -Eo '[^ ]+\s+$' | grep -Eo ':(\d+)' | cut -c 2-"
 alias dockup='docker-compose up'
+alias dockrun='docker-compose run --rm'
 alias dup=dockup
+alias drun=dockrun
 alias dockmstop='docker-machine stop'
 alias dockmrestart='docker-machine restart'
 alias dockstart='docker-machine start'
@@ -439,8 +482,8 @@ alias dshell=dockwebshell
 dockrestartuwsgi() {
   docker-compose exec web bash -c "uwsgi --reload $(awk -F "=" '/pidfile/ {print $2}' uwsgi.ini)"
 }
-alias makemigration='dmanage makemigrations'
-migrate() { dmanage migrate $@; }
+alias dmakemigration='dmanage makemigrations'
+dmigrate() { dmanage migrate $@; }
 dockdbport() {
 	export DOCK_DB_PORT=$(dockgetdbport)
     if [ -z "$1" ] || [ "$1" != '-s' ]; then
@@ -469,16 +512,6 @@ docksetup() {
   	venv
   fi
 }
-alias vboxprocesses="ps xao pid,command | grep 'VBox' | grep -v 'grep'"
-dockip() {
-  local machinename
-  if [ ! -z $1 ]; then
-    machinename="$1"
-  else
-    machinename="$DOCKER_MACHINE_NAME"
-  fi
-  docker-machine ip $machinename; 
-}
 dockdbport() { docker-compose ps | grep '_db' | perl -nle '/[0-9\.]*:(\d+)/ && print "$1";' }
 docknginxport() {
   # hacky af, bruh
@@ -487,20 +520,11 @@ docknginxport() {
 dockwebport() {
   cat docker-compose.yml | yq '.["services"]["web"]["ports"][0]' | perl -nle '/([0-9]+):/ && print "$1"';
 }
+dockwebservice() {
+  docker-compose run --service-ports web ./manage.py runserver 0.0.0.0:$(dockwebport)
+}
 openrunning() {
-  local runningmachine
-  if [ ! -z $1 ]; then
-    runningmachine=$1
-  else
-    runningmachine=$DOCKER_MACHINE_NAME
-  fi
-  local machineip=$(docker-machine ip $runningmachine)
-  local webappport=$(docknginxport)
-  if [[ -z $machineip || -z $runningmachine || -z $webappport ]]; then
-    echo "Error - Missing one of the following: running machine ($runningmachine), IP ($machineip), port ($webappport)"
-    return
-  fi
-  open "http://$machineip:$webappport"
+  echo "Needs to be reimplemented - maybe use .env variables"
 }
 startdocknb() {
   local machinename=$1
@@ -524,6 +548,56 @@ startdocknb() {
 dockrmruncontainers() {
   docker rm $(docker ps -a | grep "_run_" | perl -nle '/^(\w+)/ && print "$1";')
 }
+
+
+### More custom commands for Docker-ized apps
+alias lintjs='docker-compose run --rm watch npm run-script lint'
+alias lintsass='docker-compose run --rm watch npm run-script scss_lint'
+alias lint='lintjs && lintsass'
+alias nfmt='npm run fmt'
+alias pyfmt='docker-compose run --rm web black .'
+alias lintpy='docker-compose run --rm web pylint'
+alias testpy='docker-compose run --rm web tox -- --no-cov --disable-pytest-warnings --show-capture=no'
+alias testpyfull='docker-compose run --rm web tox'
+alias dtox=testpy
+alias testcfgminimal='/bin/cp -f pytest_minimal.ini pytest.ini'
+alias testcfgrevert='git checkout origin/master pytest.ini'
+testpymin() {
+  local keepmin=''
+  if [ ! -z "$1" ] && [ "$1" = '--keepmin' ]; then;
+    keepmin="true"; shift
+  fi
+  testcfgminimal && docker-compose run --rm web tox $@;
+  if [ -z "$keepmin" ]; then
+  	testcfgrevert
+  fi
+}
+alias testpyminkeep='testpymin --keepmin'
+alias testjs="docker-compose run --rm watch ./scripts/test/js_test.sh"
+alias testjsroot="docker-compose run --rm watch ./js_test.sh"
+alias dwatchbash='docker-compose run --rm watch bash'
+alias dwebbash='docker-compose run --rm web bash'
+alias flowjs='npm run-script flow'
+dbconnect() { psql -h 127.0.0.1 -p $(dockdbport) -U postgres }
+dbrun() {
+  local runcmd
+  local db
+  if [ ! -z $2 ]; then
+    runcmd="$2"
+	  db="$1"
+  else
+    runcmd="$1"
+	  db="postgres"
+  fi
+  local dbport=$(dockdbport)
+  if [ -z $dbport ]; then
+    echo "No DB port detected. Is the 'db' service running?"
+  else
+    psql -h 127.0.0.1 -p $(dockdbport) -U postgres --dbname=$db -c $runcmd
+  fi
+}
+alias dbmigrationquery="dbrun 'SELECT * FROM django_migrations;'"
+
 
 ### Docker edX devstack commands
 alias dedxcustomimagebuild="docker build $CUSTOM_DEVSTACK_PATH -t $CUSTOM_DEVSTACK_IMG_NAME --no-cache"
@@ -669,55 +743,7 @@ alias dedxlmsreleasechange="dedxlmsdbupdate && make lms-static"
 alias webpack="./webpack_dev_server.sh"
 alias webpackinstall="./webpack_dev_server.sh --install"
 alias webpackinstallsass="npm rebuild node-sass --force && webpackinstall"
-
-##############################################
-### General and specific codebase commands ###
-##############################################
-
-# General
-alias lintjs='docker-compose run --rm watch npm run-script lint'
-alias lintsass='docker-compose run --rm watch npm run-script scss_lint'
-alias lint='lintjs && lintsass'
-alias nfmt='npm run fmt'
-alias lintpy='docker-compose run --rm web pylint'
-alias testpy='docker-compose run --rm web tox -- --no-cov --disable-pytest-warnings --show-capture=no'
-alias testpyfull='docker-compose run --rm web tox'
-alias dtox=testpy
-alias testcfgminimal='/bin/cp -f pytest_minimal.ini pytest.ini'
-alias testcfgrevert='git checkout origin/master pytest.ini'
-testpymin() {
-  local keepmin=''
-  if [ ! -z "$1" ] && [ "$1" = '--keepmin' ]; then;
-    keepmin="true"; shift
-  fi
-  testcfgminimal && docker-compose run --rm web tox $@;
-  if [ -z "$keepmin" ]; then
-  	testcfgrevert
-  fi
-}
-alias testpyminkeep='testpymin --keepmin'
-alias testjs="docker-compose run --rm watch ./scripts/test/js_test.sh"
-alias testjsroot="docker-compose run --rm watch ./js_test.sh"
-alias dwatchbash='docker-compose run --rm watch bash'
-alias flowjs='npm run-script flow'
-dbconnect() { psql -h $(dockip) -p $(dockdbport) -U postgres }
-dbrun() {
-  local runcmd
-  local db
-  if [ ! -z $2 ]; then
-    runcmd="$2"
-	  db="$1"
-  else
-    runcmd="$1"
-	  db="postgres"
-  fi
-  local dbport=$(dockdbport)
-  if [ -z $dbport ]; then
-    echo "No DB port detected. Is the 'db' service running?"
-  else
-    psql -h $(dockip) -p $(dockdbport) -U postgres --dbname=$db -c $runcmd
-  fi
-}
+alias npmsass="npm rebuild node-sass --force"
 
 # EDX
 export DOCKER_COMPOSE_FILES="-f docker-compose.yml -f docker-compose-host.yml"
@@ -841,8 +867,9 @@ alias redditstart="pushd $REDDIT_CONF_PATH; vagrant up; popd"
 alias redditrun=redditstart
 alias redditrebuild="pushd $REDDIT_CONF_PATH; vagrant reload && vagrant provision; popd"
 alias redditrestart="pushd $REDDIT_CONF_PATH; vagrant ssh -c 'sudo reddit-restart'; popd"
+alias redditerrorlogtail="vagrant ssh -c \"sudo tail -f /var/log/upstart/reddit-paster.log\""
 alias redditlasterror="vagrant ssh -c \"sudo tac /var/log/upstart/reddit-paster.log | grep -m 1 'Debug at:' | grep -Eo 'http[^\s]*'\""
-alias redditserverstatus='curl -s --head "http://reddit.local/" --connect-timeout 3 | head -n 1'
+alias redditserverstatus='curl -s --head "http://reddit.local/" --connect-timeout 6 | head -n 1'
 alias redditrunning='redditserverstatus | grep -o "200 OK"'
 redditstatus() {
   pushd $REDDIT_CONF_PATH
@@ -854,6 +881,8 @@ redditstatus() {
   local serverstatus=$(redditserverstatus)
   echo "Reddit server status: $serverstatus"
 }
+alias rstatus=redditstatus
+alias rbuild=redditrebuild
 
 # OPEN-DISCUSSIONS
 export OPDISC_MACHINE_NAME='opdisc'
