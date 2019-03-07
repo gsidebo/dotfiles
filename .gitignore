@@ -3,3 +3,5 @@
 *keys
 .rcsettings
 *~
+
+*.DS_Store

@@ -1,7 +1,4 @@
 # Machine-unspecific settings
-#
-# Env variables to set in ~/.zshrc:
-#   PATH, DEVPATH
 
 setclobber() { setopt clobber }
 setnoclobber() { setopt noclobber }
@@ -40,7 +37,7 @@ pwdtail() { echo ${PWD##*/} }
 epoch() { date +%s; }
 alias cdev="cd $DEVPATH"
 
-#   extract:  Extract most know archives with one command
+#   extract:  Extract most known archives with one command
 #   ---------------------------------------------------------
 extract () {
   if [ -f $1 ] ; then
@@ -185,7 +182,10 @@ gpshu() {
   fi
 }
 alias gdiff='git diff'
-alias gdiffnames='git diff --name-only'
+gdiffnames() {
+  local branchcomparedto=${1:-master}
+  git diff --name-only $branchcomparedto
+}
 alias gdiffhead='git diff HEAD'
 gdiffn() {
   single_digit_match=$(echo "$1" | grep -Eo '^\d$')
@@ -387,8 +387,12 @@ venvcurrent() {
 ### pyenv-virtualenv
 pvenv() { pyenv activate $(pwdtail) }
 pvenvoff() { pyenv deactivate $(pwdtail) }
-pvenvcreate() { pyenv virtualenv "${PWD##*/}" }
-pvenvdelete() { pyenv uninstall $(pwdtail) }
+pvenvcreate() {
+  pyenv virtualenv $1 $(pwdtail)
+}
+pvenvdelete() { 
+  pyenv uninstall $(pwdtail) 
+}
 
 ### Random util commands
 encodeforurl() {
