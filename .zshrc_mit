@@ -28,10 +28,12 @@ export SANDBOX_PATH="$DEVPATH/sandbox"
 export SANDBOXBASH_PATH="$SANDBOX_PATH/bash"
 export OPDISC_PATH="$DEVPATH/open-discussions"
 export OVS_PATH="$DEVPATH/odl-video-service"
+export XPRO_PATH="$DEVPATH/mitxpro"
 export EDX_DOCKER_PATH="$DEVPATH/edx_devstack_docker/devstack"
 export EDX_DOCKER_SRC_PATH="$DEVPATH/edx_devstack_docker/edx-platform"
 export EDX_FICUS_PATH="$DEVPATH/edx_devstack_ficus"
 export EDX_GINKGO_PATH="$DEVPATH/edx_devstack_ginkgo"
+export DEVSTACK_TOOLS_PATH="$DEVPATH/custom_docker/odl_devstack_tools"
 export RAPID_RESPONSE_PATH="$DEVPATH/rapid-response-xblock"
 export RDEVPATH="$HOME/devreddit"
 export REDDIT_CONF_PATH="$RDEVPATH/reddit-config"
@@ -56,6 +58,8 @@ alias cdrapid="cd $RAPID_RESPONSE_PATH"
 alias cdrdev="cd $RDEVPATH"
 alias cdopdisc="cd $OPDISC_PATH"
 alias cdo=cdopdisc
+alias cdxpro="cd $XPRO_PATH"
+alias cdx=cdxpro
 alias cdredcon="cd $REDDIT_CONF_PATH"
 alias cdovs="cd $OVS_PATH"
 alias cdxqueue="cd $XQUEUE_DOCKER_PATH"
@@ -142,6 +146,8 @@ alias gchginkgo='git checkout mitx/ginkgo'
 ### Git magic
 export GITHUB_URL="https://github.com"
 export GITHUB_API_URL="https://api.github.com"
+export GITHUB_MIT_URL="https://github.mit.edu"
+export GITHUB_MIT_API_URL="https://github.mit.edu/api/v3"
 export GIT_AUTHOR_LABEL_NAME="Waiting on Author"
 export GIT_REVIEW_LABEL_NAME="Needs Review"
 gsetremote() {
@@ -165,23 +171,33 @@ gsetremote() {
 }
 gsetapivalues() {
   git_remote=$(gsetremote $1)
-  remote_tail=$(git remote -v | grep 'push' | grep "$git_remote" | perl -nle '/.*github\.com[\/|:]([^\/]+\/.*)\.git/ && print "$1";')
-  github_owner=$(echo "$remote_tail" | grep -Eo '^\w+')
+  remote_push_line=$(git remote -v | grep 'push' | grep "$git_remote")
+  github_host=$(echo $remote_push_line | perl -nle '/[@|\/](github[\.\w]+)[\/|:]/ && print "$1";')
+  if [[ $github_host == "github.mit.edu" ]]; then
+    github_api_url=$GITHUB_MIT_API_URL
+    github_token=$GITHUB_MIT_TOKEN
+    github_url=$GITHUB_MIT_URL
+  else
+    github_api_url=$GITHUB_API_URL
+    github_token=$GIT_TOKEN
+    github_url=$GITHUB_URL
+  fi
+  remote_tail=$(echo $remote_push_line | perl -nle '/.*github[\.\w]+[\/|:]([^\/]+\/.*)\.git/ && print "$1";')
+  github_owner=$(echo "$remote_tail" | grep -Eo '^[^\/]+')
   github_repo=$(echo "$remote_tail" | perl -nle '/\/(.*)$/ && print "$1";')
   if [ -z "$github_owner" ] || [ -z "$github_repo" ]; then
     echo "Could not properly set github_owner or github_repo."
   fi
 }
-gh_api_call() {
+"gh_api_call"() {
   if (( $# < 1 )); then
     echo "Need >= 1 param"
     return
   else
     api_url_stub="$1"; shift
   fi
-  full_url="$GITHUB_API_URL/$api_url_stub"
-  # echo "$full_url"
-  curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$full_url" $@
+  full_url="$github_api_url/$api_url_stub"
+  curl -s -u "$GIT_USERNAME:$github_token" "$full_url" $@
 }
 gh_repos_api_call() {
   if (( $# < 1 )); then
@@ -212,7 +228,7 @@ gh_issue_api_call() {
     echo "Need issue #"; return
   else
     issue_number="$1"; shift
-	api_url_stub="$GITHUB_API_URL/repos/$github_owner/$github_repo/issues/$issue_number"
+	  api_url_stub="$github_api_url/repos/$github_owner/$github_repo/issues/$issue_number"
     if (( $# > 0 )); then
 	  if [ '?' != $(echo "$1" | head -c 1) ]; then
 	    api_url_stub="$api_url_stub/"
@@ -220,16 +236,16 @@ gh_issue_api_call() {
 	  api_url_stub="$api_url_stub$1"
 	fi
   fi
-  curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$api_url_stub"
+  curl -s -u "$GIT_USERNAME:$github_token" "$api_url_stub"
   
 }
 gh_site_url_base() {
   gsetapivalues
-  echo "$GITHUB_URL/$github_owner/$github_repo"
+  echo "$github_url/$github_owner/$github_repo"
 }
 gnewissue() {
   gsetapivalues
-  open "$GITHUB_URL/$github_owner/$github_repo/issues/new"
+  open "$github_url/$github_owner/$github_repo/issues/new"
 }
 gcurbranchprinfo() {
   gsetapivalues
@@ -332,7 +348,7 @@ gprnew () {
   if [ -z "$remote" ]; then
     echo "Not tracking a remote branch; can't open a PR"; return
   fi
-  open $GITHUB_URL/$github_owner/$github_repo/compare/master...$curbranch
+  open $github_url/$github_owner/$github_repo/compare/master...$curbranch
 }
 gmyissues() {
   gsetapivalues && gh_api_call "search/issues?q=assignee:$GIT_USERNAME+repo:$github_owner/$github_repo+state:open" | jq '.["items"][] | {number: .["number"], title: .["title"], url: .["html_url"]} + if has("pull_request") then {is: "PULL REQUEST"} else {} end  + if (.["labels"] | any(.["name"] == "epic")) then {is: "EPIC"} else {} end'
@@ -494,7 +510,7 @@ alias dloginfo='sed -i "" "s/DJANGO_LOG_LEVEL=[A-Z]*/DJANGO_LOG_LEVEL=INFO/g" .e
 alias dlogreset=dloglevelinfo
 dockdbport() {
 	export DOCK_DB_PORT=$(dockgetdbport)
-    if [ -z "$1" ] || [ "$1" != '-s' ]; then
+  if [ -z "$1" ] || [ "$1" != '-s' ]; then
 	  echo "$DOCK_DB_PORT"
 	fi
 }
@@ -529,19 +545,31 @@ dockwebport() {
   cat docker-compose.yml | yq '.["services"]["web"]["ports"][0]' | perl -nle '/([0-9]+):/ && print "$1"';
 }
 dockwebservice() {
-  docker-compose run --service-ports web ./manage.py runserver 0.0.0.0:$(dockwebport)
+  docker-compose run --rm --service-ports web ./manage.py runserver 0.0.0.0:$(dockwebport)
 }
+alias dockrunserviceweb=dockwebservice
 openrunning() {
   echo "Needs to be reimplemented - maybe use .env variables"
 }
 dockrmruncontainers() {
   docker rm $(docker ps -a | grep "_run_" | perl -nle '/^(\w+)/ && print "$1";')
 }
+alias docknbbuild="docker-compose -f docker-compose-notebook.yml build"
 alias docknbrun="docker-compose -f docker-compose-notebook.yml run --rm --service-ports notebook"
+alias docknbrunningcontainer="docker ps --format '{{.Names}}' | grep \"_notebook_run_\""
+docknbrunningtokenqs() {
+  local NB_PORT="${1:-8080}"
+  local running_container=$(docknbrunningcontainer)
+  if [ -z $running_container ]; then
+    echo "Notebook container doesn't appear to be running"
+    return
+  fi
+  docker logs $running_container 2>&1 | grep -E "http://(.*):"$NB_PORT"[^ ]+\w" | tail -1 | grep -Eo "\?(\w|\d|=)*"
+}
 docknbopen() {
   local APP_HOST="${1:-127.0.0.1}" 
   local NB_PORT="8080"
-  local nb_token_param=$(docker logs $(docker ps --format '{{.Names}}' | grep "_notebook_run_") | grep -E "http://(.*):"$NB_PORT"[^ ]+\w" | tail -1 | grep -Eo "\?(\w|\d|=)*")
+  local nb_token_param=$(docknbrunningtokenqs $NB_PORT)
   local nb_server_url=http://"$APP_HOST":"$NB_PORT"
   
   local nb_paths=$(find . -name "*.ipynb" | grep -v "checkpoint")
@@ -565,7 +593,36 @@ docknbopen() {
   fi
   open $full_nb_url
 }
-
+docknbstoprunning() {
+  local runningContainer=$(docknbrunningcontainer)
+  if [ ! -z $runningContainer ]; then
+    echo "Stopping currently running container ($runningContainer)..."
+    docker stop $runningContainer
+  fi
+}
+docknbrunopen() {
+  docknbstoprunning
+  docker-compose -f docker-compose-notebook.yml run --rm --service-ports -d notebook
+  
+  local sleepTime=2
+  local totalBeats=8
+  local idx=0
+  
+  sleep $sleepTime
+  local runningTokenQs=$(docknbrunningtokenqs)
+  while [ -z $runningTokenQs -a $idx -ne $totalBeats ]; do
+    echo "NB Server not yet running. Retrying..."
+    runningTokenQs=$(docknbrunningtokenqs)
+    idx=$(($idx + 1))
+    sleep $sleepTime
+  done
+  
+  if [ -z $runningTokenQs ]; then
+    echo "Couldn't confirm in the logs that the NB server is running. Exiting..."
+    return
+  fi
+  docknbopen $@
+}
 
 ### More custom commands for Docker-ized apps
 alias lintjs='docker-compose run --rm watch npm run-script lint'
@@ -574,11 +631,25 @@ alias lint='lintjs && lintsass'
 alias nfmt='npm run fmt'
 alias jsfmt=nfmt
 alias pyfmt='docker-compose run --rm web black .'
-alias lintpy='docker-compose run --rm web pylint'
-alias testpy='docker-compose run --rm web tox -- -W ignore::_pytest.warning_types.PytestWarning --no-cov --show-capture=no'
-#alias testpy='docker-compose run --rm web tox -- --no-cov --disable-pytest-warnings --show-capture=no'
-alias testpyfull='docker-compose run --rm web tox'
-alias dtox=testpy
+alias lintpy='docker-compose run --rm web pytest --pylint -m pylint'
+alias testpytox='docker-compose run --rm web tox -- -W ignore::_pytest.warning_types.PytestWarning --no-cov --show-capture=no'
+### OLD VERSION
+### alias testpytox='docker-compose run --rm web tox -- --no-cov --disable-pytest-warnings --show-capture=no'
+alias testpytestnolint='docker-compose run --rm web pytest --no-pylint'
+alias testpytest='docker-compose run --rm web pytest'
+testpy() {
+  if [[ -f "./tox.ini" ]]; then
+    echohighlight "Running tox..."
+    testpytox $@
+  else
+    echohighlight "Running pytest..."
+    testpytest $@
+  fi
+}
+testpypush() {
+  pyfmt
+  testpy && gpsh -f
+}
 alias toxkillpyfmt='sed -i "" -e "s/black\ --check/#\ black\ --check/g" tox.ini'
 alias toxrestorepyfmt='sed -i "" -e "s/#\ black\ --check/black\ --check/g" tox.ini'
 alias testcfgminimal='/bin/cp -f pytest_minimal.ini pytest.ini'
@@ -601,20 +672,14 @@ alias dwebbash='docker-compose run --rm web bash'
 alias flowjs='npm run-script flow'
 dockdbconnect() { psql -h 127.0.0.1 -p $(dockdbport) -U postgres }
 dockdbrun() {
-  local runcmd
-  local db
-  if [ ! -z $2 ]; then
-    runcmd="$2"
-	  db="$1"
-  else
-    runcmd="$1"
-	  db="postgres"
-  fi
+  local runcmd=$1; shift
+  local db="postgres"
   local dbport=$(dockdbport)
+  
   if [ -z $dbport ]; then
     echo "No DB port detected. Is the 'db' service running?"
   else
-    psql -h 127.0.0.1 -p $(dockdbport) -U postgres --dbname=$db -c $runcmd
+    psql -h 127.0.0.1 -p $(dockdbport) -U postgres --dbname=$db -c $runcmd $@
   fi
 }
 alias dockdbrunquery=dockdbrun
@@ -641,7 +706,7 @@ function dedxup() {
   flags+=('-d')
   
   # Add custom compose file(s) to docker-compose params if it's set and the file exists
-  if [ ! -z $USE_CUSTOM_DEVSTACK ]; then
+  if [ ! -z $USE_CUSTOM_DEVSTACK ] || [ $USE_CUSTOM_DEVSTACK -eq 1 ]; then
     compose_file_args+=( '-f' "$CUSTOM_DEVSTACK_PATH/$DEFAULT_CUSTOM_DEVSTACK_COMPOSE_FILE" )
     if [ ! -z $CUSTOM_DEVSTACK_COMPOSE_FILE ]; then
       compose_file_args+=( '-f' "$CUSTOM_DEVSTACK_PATH/$CUSTOM_DEVSTACK_COMPOSE_FILE" )
@@ -701,14 +766,14 @@ function dedxrun() {
   docker exec -it "edx.devstack.$servicename" env TERM=$TERM bash -c "source /edx/app/edxapp/edxapp_env; . /edx/app/edxapp/nodeenvs/edxapp/bin/activate; . /edx/app/edxapp/venvs/edxapp/bin/activate; cd /edx/app/edxapp/edx-platform; $@"
 }
 function dedxdshell() {
-  local servicename=$1
-  local appname=$1
+  local servicename=$1; shift
+  local appname=$servicename
   if [[ "$servicename" == "studio" ]]; then
     appname="cms"
   elif [[ "$servicename" == "cms" ]]; then
     servicename="studio"
   fi
-  dedxrun $servicename "python ./manage.py $appname --settings=devstack_docker shell" 
+  dedxrun $servicename "python ./manage.py $appname --settings=devstack_docker shell $@" 
 }
 dedxfullstatic() {
   local apps=( lms studio )
@@ -723,6 +788,15 @@ function dedxprereq() {
   fi
   for app in "${apps[@]}"; do
     docker-compose exec $app bash -c 'source /edx/app/edxapp/edxapp_env && cd /edx/app/edxapp/edx-platform && NO_PYTHON_UNINSTALL=1 paver install_prereqs'
+  done
+}
+function dedxprereqforce() { 
+  local apps=( lms studio )
+  if [ ! -z $1 ]; then
+    apps=( $1 )
+  fi
+  for app in "${apps[@]}"; do
+    docker-compose exec $app bash -c 'source /edx/app/edxapp/edxapp_env && cd /edx/app/edxapp/edx-platform && unset NO_PYTHON_UNINSTALL && paver install_prereqs'
   done
 }
 function dedxdbupdate() {

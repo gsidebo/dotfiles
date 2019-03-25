@@ -405,6 +405,9 @@ encodeforurl() {
     return
   fi
 }
+echohighlight() {
+  echo -e "\033[1;92m$@\e[0m"
+}
 
 # Machine-specific stuff
 if [[ -s "$DEVPATH/dotfiles/.rcsettings" ]]; then
