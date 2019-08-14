@@ -74,11 +74,13 @@ alias cdcli="cd $DEVPATH/sandbox/cli_commands"
 ### Docker devstack settings
 export CUSTOM_DEVSTACK_IMG_NAME='edxops/edxapp:gavin'
 export CUSTOM_DEVSTACK_PATH="/Users/gavin/dev/custom_docker/odl_devstack_tools"
-export DEVSTACK_CONTAINER_HELPER_DIR="/edx/app/edxapp/helper"
-export DEVSTACK_CONTAINER_MOUNT_DIR="/edx/app/edxapp/venvs/edxapp/src"
+export DEVSTACK_CONTAINER_BASE_DIR="/edx/app/edxapp"
+export DEVSTACK_CONTAINER_HELPER_DIR="$DEVSTACK_CONTAINER_BASE_DIR/helper"
+export DEVSTACK_CONTAINER_MOUNT_DIR="$DEVSTACK_CONTAINER_BASE_DIR/venvs/edxapp/src"
 export COMPOSE_HTTP_TIMEOUT=6000
 export USE_CUSTOM_DEVSTACK=1
 export DEFAULT_CUSTOM_DEVSTACK_COMPOSE_FILE="docker-compose-custom.yml"
+export EDX_SRC_PATH="$EDX_DOCKER_SRC_PATH"
 
 ### Assorted utilities
 alias edit='charm'
@@ -267,6 +269,10 @@ gprissue() {
     return
   fi
   gh_repos_api_call "pulls/$1" | jq '.["body"]' | grep -Eo "[closes|Closes|fixes|Fixes]\s+\#\d+" | grep -Eo "\d+$"
+}
+gopenrepo() {
+  gsetapivalues
+  open $github_url/$github_owner/$github_repo
 }
 gopenpr() {
   gcurbranchprinfo | jq -r '.[0] | .["_links"]["html"]["href"]' | xargs open
@@ -474,6 +480,18 @@ gnewrfc() {
   fi
   cp ./docs/rfcs/0000-template.md ./docs/rfcs/$1.md
 }
+retrocollect() {
+  if [ -z $1 ]; then
+    echo "Need issue #. Exiting..."
+    return
+  fi
+  local startdir=$(pwd)
+  cd $DEVPATH/retrospectives
+  gsetapivalues
+  output=$(gh_issue_api_call "$1/comments" | python $DEVPATH/sideprojects/retrocollect/collect.py)
+  cd $startdir
+  echo $output
+}
 
 
 ### Docker functions and aliases
@@ -483,11 +501,14 @@ alias docksshc='docker-compose run --rm web bash'
 alias dockbuild='docker-compose build'
 alias dockstop='docker-compose stop'
 alias dockrestart='docker-compose restart'
+alias dresweb='docker-compose restart web'
+alias dreswatch='docker-compose restart watch'
 alias dockpause='docker-compose pause'
 alias dockunpause='docker-compose unpause'
 alias dockps='docker-compose ps'
 alias dockgetdbport="docker-compose ps | grep '_db' | grep -Eo '[^ ]+\s+$' | grep -Eo ':(\d+)' | cut -c 2-"
 alias dockup='docker-compose up'
+alias dockupd='docker-compose up -d'
 alias dockrun='docker-compose run --rm'
 alias dup=dockup
 alias drun=dockrun
@@ -505,6 +526,7 @@ dockrestartuwsgi() {
 }
 alias dmakemigration='dmanage makemigrations'
 dmigrate() { dmanage migrate $@; }
+alias dockpipnewreq='docker-compose run web pip-compile requirements.in && docker-compose build web'
 alias dlogdebug='sed -i "" "s/DJANGO_LOG_LEVEL=[A-Z]*/DJANGO_LOG_LEVEL=DEBUG/g" .env'
 alias dloginfo='sed -i "" "s/DJANGO_LOG_LEVEL=[A-Z]*/DJANGO_LOG_LEVEL=INFO/g" .env'
 alias dlogreset=dloglevelinfo
@@ -565,6 +587,16 @@ docknbrunningtokenqs() {
     return
   fi
   docker logs $running_container 2>&1 | grep -E "http://(.*):"$NB_PORT"[^ ]+\w" | tail -1 | grep -Eo "\?(\w|\d|=)*"
+}
+docknbrooturl() {
+  local APP_HOST="${1:-127.0.0.1}"
+  local NB_PORT="8080"
+  local nb_token_param=$(docknbrunningtokenqs $NB_PORT)
+  local nb_server_url=http://"$APP_HOST":"$NB_PORT"
+  echo "$nb_server_url/$nb_token_param"
+}
+docknbrooturlcopy() {
+  docknbrooturl $1 | pbcopy
 }
 docknbopen() {
   local APP_HOST="${1:-127.0.0.1}" 
@@ -646,6 +678,9 @@ testpy() {
     testpytest $@
   fi
 }
+testpynolint () {
+  testpy --no-pylint $@
+}
 testpypush() {
   pyfmt
   testpy && gpsh -f
@@ -684,7 +719,19 @@ dockdbrun() {
 }
 alias dockdbrunquery=dockdbrun
 alias dbmigrationquery="dbrun 'SELECT * FROM django_migrations;'"
-alias dbmigrationdiff="git diff --name-only master | grep 'migrations/'"
+migrationdiff() {
+  local mergebase
+  local branch1=$(gcurbranch)
+  local branch2=master
+  if [ ! -z "$2" ]; then
+    branch2=$2
+  fi
+  if [ ! -z "$1" ]; then
+    branch1=$1
+  fi
+  mergebase=$(git merge-base $branch1 $branch2)
+  git diff --name-only "$mergebase" | grep "migrations/"
+}
 
 ### Docker edX devstack commands
 alias dedxcustomimagebuild="docker build $CUSTOM_DEVSTACK_PATH -t $CUSTOM_DEVSTACK_IMG_NAME --no-cache"
