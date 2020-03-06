@@ -120,7 +120,10 @@ grecmt() {
 }
 alias gcmtundo='git reset --soft HEAD~'
 alias grecmtpsh='grecmt && gpsh -f'
-alias gpsh='git push'
+alias gpshunsafe='git push'
+gpsh() {
+  [[ $(gcurbranch) == "master" ]] && echo 'Currently on master. Use "gpshunsafe" if you want to push anyway.' || git push $@
+}
 
 gbranchremotewithname() {
   if [ -z $1 ]; then
@@ -235,7 +238,7 @@ alias greshard='git reset --hard'
 ### git reset HEAD $1 && git checkout -- $1
 alias gres=gresfile
 gresremote() {
-  git reset --hard $(gcurbranchremotewithname)
+  git fetch && git reset --hard $(gcurbranchremotewithname)
 }
 gstash() {
   if [ -z "$1" ]; then
@@ -388,7 +391,7 @@ venvcurrent() {
 pvenv() { pyenv activate $(pwdtail) }
 pvenvoff() { pyenv deactivate $(pwdtail) }
 pvenvcreate() {
-  pyenv virtualenv $1 $(pwdtail)
+  pyenv virtualenv $1 $(pwdtail) && pvenv
 }
 pvenvdelete() { 
   pyenv uninstall $(pwdtail) 

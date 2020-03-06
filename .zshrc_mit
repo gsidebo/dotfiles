@@ -132,18 +132,17 @@ function ziptotar() {
   rm -rf "$basefilename/"
 }
 alias vboxprocesses="ps xao pid,command | grep 'VBox' | grep -v 'grep'"
-
 pynbhere() {
   local existing_notebook=$(ls | grep '.ipynb')
   jupyter notebook $existing_notebook
 }
 alias pynb="cd $SANDBOX_PATH && pvenv; jupyter notebook --notebook-dir=$SANDBOX_PATH"
 alias pynbopen="open http://localhost:8888"
+alias ngrok="~/ngrok"
 
 ### Simple Git shortcuts
 alias gchrelease='git checkout release'
 alias gchrc='git checkout release-candidate'
-alias gchginkgo='git checkout mitx/ginkgo'
 
 ### Git magic
 export GITHUB_URL="https://github.com"
@@ -480,16 +479,19 @@ gnewrfc() {
   fi
   cp ./docs/rfcs/0000-template.md ./docs/rfcs/$1.md
 }
+retrocomments() {
+  if [ -z $1 ]; then
+    echo "Need issue #. Exiting..."
+    return
+  fi
+  curl -L -s -H "Authorization: token $GITHUB_MIT_TOKEN" "https://github.mit.edu/api/v3/repos/$GITHUB_MIT_OWNER/retrospectives/issues/$1/comments"
+}
 retrocollect() {
   if [ -z $1 ]; then
     echo "Need issue #. Exiting..."
     return
   fi
-  local startdir=$(pwd)
-  cd $DEVPATH/retrospectives
-  gsetapivalues
-  output=$(gh_issue_api_call "$1/comments" | python $DEVPATH/sideprojects/retrocollect/collect.py)
-  cd $startdir
+  output=$(retrocomments $1 | python $DEVPATH/sideprojects/retrocollect/collect.py)
   echo $output
 }
 
@@ -499,6 +501,8 @@ dockenv() { eval "$(docker-machine env $1)" }
 alias dockunsetenv="unset DOCKER_TLS_VERIFY; unset DOCKER_CERT_PATH; unset DOCKER_MACHINE_NAME unset DOCKER_HOST;"
 alias docksshc='docker-compose run --rm web bash'
 alias dockbuild='docker-compose build'
+alias dockbuildall='docker-compose build web && dockbuild celery'
+alias dockbuildallnb='dockbuildall && docknbbuild'
 alias dockstop='docker-compose stop'
 alias dockrestart='docker-compose restart'
 alias dresweb='docker-compose restart web'
@@ -510,6 +514,9 @@ alias dockgetdbport="docker-compose ps | grep '_db' | grep -Eo '[^ ]+\s+$' | gre
 alias dockup='docker-compose up'
 alias dockupd='docker-compose up -d'
 alias dockrun='docker-compose run --rm'
+alias dockexec='docker-compose exec'
+alias dockattachweb='docker attach $(docker-compose ps | grep -Eo "^.*_web_1")'
+alias dattachweb=dockattachweb
 alias dup=dockup
 alias drun=dockrun
 alias dockmstop='docker-machine stop'
@@ -519,6 +526,8 @@ alias docksshm='docker-machine ssh'
 alias dockregen='docker-machine regenerate-certs'
 alias dockwebmanage='docker-compose run --rm web ./manage.py'
 alias dmanage=dockwebmanage
+alias dockwebmanagerunning='docker-compose exec web ./manage.py'
+alias dmanagerunning='docker-compose exec web ./manage.py'
 alias dockwebshell='dockwebmanage shell'
 alias dshell=dockwebshell
 dockrestartuwsgi() {
@@ -678,9 +687,10 @@ testpy() {
     testpytest $@
   fi
 }
-testpynolint () {
-  testpy --no-pylint $@
+testpysimple () {
+  testpy --no-pylint --no-cov $@
 }
+alias testpynolint=testpysimple
 testpypush() {
   pyfmt
   testpy && gpsh -f
