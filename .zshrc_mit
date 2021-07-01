@@ -1,4 +1,4 @@
-PATH="/Library/Frameworks/Python.framework/Versions/2.7/bin:/Applications/Postgres.app/Contents/Versions/9.5/bin:${PATH}:/usr/local/mysql/bin"
+PATH="/Library/Frameworks/Python.framework/Versions/2.7/bin:/Applications/Postgres.app/Contents/Versions/9.6/bin:${PATH}:/usr/local/mysql/bin"
 # Remove duplicates from PATH
 PATH=$(echo "$PATH" | awk -v RS=':' -v ORS=":" '!a[$1]++' | sed 's/:$//' | tr -d '\n')
 export PATH
@@ -21,6 +21,7 @@ export EDITOR="/usr/local/bin/mate -w"
 export SCREENSHOTS='/Users/gavin/Screenshots'
 export CODESNIP='/Users/gavin/Code Snippets'
 export SNIP=$CODESNIP
+export DBBACKUPDIR='/Users/gavin/Code Snippets/dbbackup'
 
 export MM_PATH="$DEVPATH/micromasters"
 export BOOTCAMP_PATH="$DEVPATH/bootcamp-ecommerce"
@@ -44,9 +45,15 @@ export XQUEUE_EDX_VAGRANT_PATH="$DEVPATH/xqueue-vagrant/"
 export XQUEUE_WATCHER_CFG_PATH="$DEVPATH/mitodlfork/xqueue-watcher-docker/"
 export XQUEUE_WATCHER_SRC_PATH="$DEVPATH/mitodlfork/xqueue-watcher-docker/xqueue-watcher/"
 export SALTSTACK_SANDBOX_PATH="$DEVPATH/salt-essentials-utils"
+export OCW_STUDIO_PATH="$DEVPATH/ocw-studio"
+export OCW_WWW_PATH="$DEVPATH/ocw-www"
+export OCW_STARTER_PATH="$DEVPATH/ocw-course-hugo-starter"
+export OCW_THEME_PATH="$DEVPATH/ocw-course-hugo-theme"
+export BLANKIE_PATH="$DEVPATH/sideprojects/blankie"
 alias cdmic="cd $MM_PATH"
 alias cdm=cdmic
 alias cdboot="cd $BOOTCAMP_PATH"
+alias cdb=cdboot
 alias cdsandbox="cd $SANDBOX_PATH"
 alias cdsandboxbash="cd $SANDBOXBASH_PATH"
 alias cdedxdock="cd $EDX_DOCKER_PATH"
@@ -62,17 +69,30 @@ alias cdxpro="cd $XPRO_PATH"
 alias cdx=cdxpro
 alias cdredcon="cd $REDDIT_CONF_PATH"
 alias cdovs="cd $OVS_PATH"
+alias cdsalt="cd $DEVPATH/salt-ops"
 alias cdxqueue="cd $XQUEUE_DOCKER_PATH"
 alias cdxqueuevagrant="cd $XQUEUE_VAGRANT_PATH"
 alias cdxqueueedxvagrant="cd $XQUEUE_EDX_VAGRANT_PATH"
 alias cdxqueuewatch="cd $XQUEUE_WATCHER_CFG_PATH"
 alias cdxqueuewatchsrc="cd $XQUEUE_WATCHER_SRC_PATH"
 alias cdsaltsandbox="cd $SALTSTACK_SANDBOX_PATH"
+alias cdocws="cd $OCW_STUDIO_PATH"
+alias cdocww="cd $OCW_WWW_PATH"
+alias cdocwstart="cd $OCW_STARTER_PATH"
+alias cdocwt="cd $OCW_THEME_PATH"
 alias cdside="cd $DEVPATH/sideprojects"
 alias cdcli="cd $DEVPATH/sandbox/cli_commands"
+alias cdblankie="cd $BLANKIE_PATH"
 
 ### Docker devstack settings
-export CUSTOM_DEVSTACK_IMG_NAME='edxops/edxapp:gavin'
+export CUSTOM_DEVSTACK_USE_YAML_CONFIG=1
+export CUSTOM_DEVSTACK_IMG_NAME_PY2='edxops/edxapp:gavin'
+export CUSTOM_DEVSTACK_IMG_NAME_PY3='edxops/edxapp:gavin-py3'
+export CUSTOM_DEVSTACK_IMG_NAME=$CUSTOM_DEVSTACK_IMG_NAME_PY3
+export CUSTOM_DEVSTACK_BASE_IMG_PY2='edxops/edxapp:latest'
+# export CUSTOM_DEVSTACK_BASE_IMG_PY3='edxops/edxapp:juniper.master'
+export CUSTOM_DEVSTACK_BASE_IMG_PY3='edxops/edxapp:latest'
+export CUSTOM_DEVSTACK_BASE_IMG=$CUSTOM_DEVSTACK_BASE_IMG_PY3
 export CUSTOM_DEVSTACK_PATH="/Users/gavin/dev/custom_docker/odl_devstack_tools"
 export DEVSTACK_CONTAINER_BASE_DIR="/edx/app/edxapp"
 export DEVSTACK_CONTAINER_HELPER_DIR="$DEVSTACK_CONTAINER_BASE_DIR/helper"
@@ -152,6 +172,7 @@ export GITHUB_MIT_API_URL="https://github.mit.edu/api/v3"
 export GIT_AUTHOR_LABEL_NAME="Waiting on Author"
 export GIT_REVIEW_LABEL_NAME="Needs Review"
 gsetremote() {
+  local mainbranch=$(gmainbranch)
   local branch=''
   if [ ! -z $1 ]; then
     branch="$1"
@@ -160,7 +181,7 @@ gsetremote() {
   fi
   local git_remote=$(gbranchremote $branch)
   if [ -z "$git_remote" ]; then
-    git_remote=$(git config "branch.master.remote")
+    git_remote=$(git config "branch.$mainbranch.remote")
     if [ -z "$git_remote" ]; then
       echo "Couldn't determine a remote for current branch or master"
       exit 1
@@ -353,7 +374,8 @@ gprnew () {
   if [ -z "$remote" ]; then
     echo "Not tracking a remote branch; can't open a PR"; return
   fi
-  open $github_url/$github_owner/$github_repo/compare/master...$curbranch
+  local mainbranch=$(gmainbranch)
+  open $github_url/$github_owner/$github_repo/compare/$mainbranch...$curbranch
 }
 gmyissues() {
   gsetapivalues && gh_api_call "search/issues?q=assignee:$GIT_USERNAME+repo:$github_owner/$github_repo+state:open" | jq '.["items"][] | {number: .["number"], title: .["title"], url: .["html_url"]} + if has("pull_request") then {is: "PULL REQUEST"} else {} end  + if (.["labels"] | any(.["name"] == "epic")) then {is: "EPIC"} else {} end'
@@ -367,11 +389,12 @@ gmyprscreated() {
 alias gmyprs="echo 'ASSIGNED' && gmyprsassigned && echo 'CREATED' && gmyprscreated"
 gsquash() {
   local curbranch=$(gcurbranch)
-  local branch_parent_commit=$(git merge-base $curbranch master)
+  local mainbranch=$(gmainbranch)
+  local branch_parent_commit=$(git merge-base $curbranch $mainbranch)
   if [ -z "$curbranch" ]; then
     echo "No current branch obtained. No squashy."
-  elif [[ "$curbranch" == "master" ]]; then
-    echo "You are currently on master. No squashy."
+  elif [[ "$curbranch" == $mainbranch ]]; then
+    echo "You are currently on $mainbranch. No squashy."
   elif [ -z "$branch_parent_commit" ]; then
     echo "No branch parent commit found. No squashy."
   else
@@ -417,6 +440,7 @@ gtagrelease() {
 }
 alias greb='git fetch && git rebase'
 alias grebmaster='git fetch && git rebase origin/master'
+alias grebmain='git fetch && git rebase origin/main'
 alias grebabort='git rebase --abort'
 alias grebcontinue='git rebase --continue'
 alias grebskip='git rebase --skip'
@@ -497,6 +521,9 @@ retrocollect() {
 
 
 ### Docker functions and aliases
+export DOCKPGUSER=postgres
+export DOCKPGDBNAME=postgres
+export DOCKPGTESTDBNAME=test_postgres
 dockenv() { eval "$(docker-machine env $1)" }
 alias dockunsetenv="unset DOCKER_TLS_VERIFY; unset DOCKER_CERT_PATH; unset DOCKER_MACHINE_NAME unset DOCKER_HOST;"
 alias docksshc='docker-compose run --rm web bash'
@@ -517,6 +544,8 @@ alias dockrun='docker-compose run --rm'
 alias dockexec='docker-compose exec'
 alias dockattachweb='docker attach $(docker-compose ps | grep -Eo "^.*_web_1")'
 alias dattachweb=dockattachweb
+alias dockwebmanage='docker-compose run --rm web ./manage.py'
+alias dockdbcontainer='docker ps --format ''{{.Names}}'' | grep "_db_" | head -n 1'
 alias dup=dockup
 alias drun=dockrun
 alias dockmstop='docker-machine stop'
@@ -524,7 +553,6 @@ alias dockmrestart='docker-machine restart'
 alias dockstart='docker-machine start'
 alias docksshm='docker-machine ssh'
 alias dockregen='docker-machine regenerate-certs'
-alias dockwebmanage='docker-compose run --rm web ./manage.py'
 alias dmanage=dockwebmanage
 alias dockwebmanagerunning='docker-compose exec web ./manage.py'
 alias dmanagerunning='docker-compose exec web ./manage.py'
@@ -585,7 +613,101 @@ openrunning() {
 dockrmruncontainers() {
   docker rm $(docker ps -a | grep "_run_" | perl -nle '/^(\w+)/ && print "$1";')
 }
+# Docker postgres db backup/restore/etc.
+dockdbconnect() { 
+  local dbname="${1:-postgres}" 
+  psql -h 127.0.0.1 -p $(dockdbport) -U "$dbname"
+}
+dockdbbackup() {
+  local repo=$(echo ${PWD##*/})
+  local timestamp=$(date +%s)
+  local backup_filename="$repo-$timestamp.sql"
+  local container_backup_dir="/tmp"
+  local container_backup_path="$container_backup_dir/$backup_filename"
+  local host_backup_dest="$DBBACKUPDIR/$backup_filename"
+  
+  docker-compose exec db pg_dump --username=$DOCKPGUSER --dbname=$DOCKPGDBNAME --file $container_backup_path
+  docker cp "$(dockdbcontainer):$container_backup_path" $host_backup_dest
+  echo $host_backup_dest
+}
+dockdbrestore() {
+  local repo=$(echo ${PWD##*/})
+  local dbcontainer=$(docker ps --format '{{.Names}}' | grep "_db_")
+  local container_backup_dir="/tmp"
+  
+  local backup_filename=$1
+  if [ -z $backup_filename ]; then
+    local backup_options=$(ls -t $DBBACKUPDIR | grep -E "^$repo-.*")
+    local first_option=$(echo $backup_options | head -n 1)
+    if [ -z $first_option ]; then
+      echo "No backups exist in the backup directory ($DBBACKUPDIR) for this repo ($repo)"
+      return
+    fi
+    local other_options=$(echo $backup_options | tail -n +2)
+    read -q "REPLY?No backup filename specified. Use the following? [$first_option]: "
+    echo
+    case "$REPLY" in
+      y|Y ) backup_filename="$first_option";;
+      * ) [[ ! -z $other_options ]] && echo "Other backup files:" && echo $other_options; return;;
+    esac
+  fi
+  
+  local host_backup_path="$DBBACKUPDIR/$backup_filename"
+  if [ ! -f $host_backup_path ]; then
+    echo "Backup file does not exist at $host_backup_path"
+    return
+  fi  
+  local container_backup_path="$container_backup_dir/$backup_filename"
+  docker cp $host_backup_path "$(dockdbcontainer):$container_backup_path"
+
+  local backup_db_name=$DOCKPGDBNAME"_bak"
+  docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "ALTER DATABASE $DOCKPGDBNAME RENAME TO $backup_db_name" && \
+    docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "CREATE DATABASE $DOCKPGDBNAME" && \
+    docker-compose exec db psql -d $DOCKPGDBNAME -U $DOCKPGUSER -f $container_backup_path && \
+    docker-compose exec db psql -d $DOCKPGDBNAME -U $DOCKPGUSER -c "DROP DATABASE $backup_db_name" && \
+    docker-compose exec db rm -f $container_backup_path
+}
+dockdbexists() {
+  docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -tAc "SELECT 1 FROM pg_database WHERE datname='$1'"
+}
+dockdbswapname() {
+  local backup_db_name=$DOCKPGDBNAME"_bak"
+  local second_backup_db_name=$DOCKPGDBNAME"_bak_2"
+  
+  local second_backup_exists=$(dockdbexists "$second_backup_db_name")
+  if [ $second_backup_exists -eq 1 ]; then
+    # Back up the backup
+    docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "DROP DATABASE $second_backup_db_name"
+    docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "ALTER DATABASE $backup_db_name RENAME TO $second_backup_db_name"
+  fi
+  docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "ALTER DATABASE $DOCKPGDBNAME RENAME TO $backup_db_name" && \
+    docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "CREATE DATABASE $DOCKPGDBNAME" && \
+    docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "\\l"
+}
+dockdbunswapname() {
+  local backup_db_name=$DOCKPGDBNAME"_bak"
+  local second_backup_db_name=$DOCKPGDBNAME"_bak_2"
+  
+  local backup_exists=$(dockdbexists "$backup_db_name")
+  if [ $backup_exists -ne 1 ]; then
+    echo "Backup database ($backup_db_name) does not exist. Cannot swap. Exiting..."
+    return
+  fi
+  
+  docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "DROP DATABASE IF EXISTS $second_backup_db_name"
+  docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "ALTER DATABASE $DOCKPGDBNAME RENAME TO $second_backup_db_name"
+  docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "ALTER DATABASE $backup_db_name RENAME TO $DOCKPGDBNAME" && \
+    docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "DROP DATABASE IF EXISTS $second_backup_db_name" && \
+    docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "\\l"   
+}
+dockdbblank() {
+  docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "DROP DATABASE $DOCKPGDBNAME" && \
+    docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "CREATE DATABASE $DOCKPGDBNAME"
+}
+
+# Docker jupyter notebook stuff
 alias docknbbuild="docker-compose -f docker-compose-notebook.yml build"
+alias dockbuildnb=docknbbuild
 alias docknbrun="docker-compose -f docker-compose-notebook.yml run --rm --service-ports notebook"
 alias docknbrunningcontainer="docker ps --format '{{.Names}}' | grep \"_notebook_run_\""
 docknbrunningtokenqs() {
@@ -637,8 +759,8 @@ docknbopen() {
 docknbstoprunning() {
   local runningContainer=$(docknbrunningcontainer)
   if [ ! -z $runningContainer ]; then
-    echo "Stopping currently running container ($runningContainer)..."
-    docker stop $runningContainer
+    echo "Stopping and removing currently running container ($runningContainer)..."
+    docker stop $runningContainer && docker -v rm $runningContainer
   fi
 }
 docknbrunopen() {
@@ -672,10 +794,18 @@ alias lint='lintjs && lintsass'
 alias nfmt='npm run fmt'
 alias jsfmt=nfmt
 alias pyfmt='docker-compose run --rm web black .'
-alias lintpy='docker-compose run --rm web pytest --pylint -m pylint'
-alias testpytox='docker-compose run --rm web tox -- -W ignore::_pytest.warning_types.PytestWarning --no-cov --show-capture=no'
+alias pysort='docker-compose run --rm web bash -c "isort ."'
+lintpy() {
+  local has_pytest_plugin=$(cat test_requirements.txt | grep "pytest-pylint")
+  if [[ -z $has_pytest_plugin ]]; then
+    echohighlight "Running pylint directly..."
+    docker-compose run --rm web bash -c "pylint ./**/*.py"
+  else
+    echohighlight "Running pylint plugin via py.test..."
+    docker-compose run --rm web pytest --pylint -m pylint
+  fi
+}
 ### OLD VERSION
-### alias testpytox='docker-compose run --rm web tox -- --no-cov --disable-pytest-warnings --show-capture=no'
 alias testpytestnolint='docker-compose run --rm web pytest --no-pylint'
 alias testpytest='docker-compose run --rm web pytest'
 testpy() {
@@ -701,7 +831,7 @@ alias testcfgminimal='/bin/cp -f pytest_minimal.ini pytest.ini'
 alias testcfgrevert='git checkout origin/master pytest.ini'
 testpymin() {
   local keepmin=''
-  if [ ! -z "$1" ] && [ "$1" = '--keepmin' ]; then;
+  if [ ! -z "$1" ] && [ "$1" = '--keepmin' ]; then
     keepmin="true"; shift
   fi
   testcfgminimal && docker-compose run --rm web tox $@;
@@ -710,12 +840,25 @@ testpymin() {
   fi
 }
 alias testpyminkeep='testpymin --keepmin'
-alias testjs="docker-compose run --rm watch ./scripts/test/js_test.sh"
+testjs() {
+  local cmd=""
+  if [[ -f "./js_test.sh" ]]; then
+    cmd="./js_test.sh"
+  elif [[ -f "./scripts/test/js_test.sh" ]]; then
+    cmd="./scripts/test/js_test.sh"
+  else
+    cmd="npm run test"
+    if [ ! -z "$1" ]; then
+      cmd="$cmd -- $@"
+    fi
+  fi
+  echohighlight "$cmd"
+  docker-compose run --rm watch bash -c "$cmd"
+}
 alias testjsroot="docker-compose run --rm watch ./js_test.sh"
 alias dwatchbash='docker-compose run --rm watch bash'
 alias dwebbash='docker-compose run --rm web bash'
 alias flowjs='npm run-script flow'
-dockdbconnect() { psql -h 127.0.0.1 -p $(dockdbport) -U postgres }
 dockdbrun() {
   local runcmd=$1; shift
   local db="postgres"
@@ -732,7 +875,7 @@ alias dbmigrationquery="dbrun 'SELECT * FROM django_migrations;'"
 migrationdiff() {
   local mergebase
   local branch1=$(gcurbranch)
-  local branch2=master
+  local branch2=$(gmainbranch)
   if [ ! -z "$2" ]; then
     branch2=$2
   fi
@@ -744,7 +887,7 @@ migrationdiff() {
 }
 
 ### Docker edX devstack commands
-alias dedxcustomimagebuild="docker build $CUSTOM_DEVSTACK_PATH -t $CUSTOM_DEVSTACK_IMG_NAME --no-cache"
+alias dedxcustomimagebuild="docker build $CUSTOM_DEVSTACK_PATH -t $CUSTOM_DEVSTACK_IMG_NAME_PY3 --build-arg BASE_IMG=$CUSTOM_DEVSTACK_BASE_IMG --no-cache --rm --force-rm"
 function getservicefromargs() {
   # These docker-compose helper functions below assume that flags can be passed in along with
   # a single service name. If a string is found that isn't a flag (i.e.: doesn't start with '-'),
@@ -820,7 +963,7 @@ function dedxbash() {
 }
 function dedxrun() {
   local servicename="$1"; shift
-  docker exec -it "edx.devstack.$servicename" env TERM=$TERM bash -c "source /edx/app/edxapp/edxapp_env; . /edx/app/edxapp/nodeenvs/edxapp/bin/activate; . /edx/app/edxapp/venvs/edxapp/bin/activate; cd /edx/app/edxapp/edx-platform; $@"
+  docker exec -it "edx.devstack.$servicename" env TERM=$TERM bash -c "source /edx/app/edxapp/edxapp_env && cd /edx/app/edxapp/edx-platform; cd /edx/app/edxapp/edx-platform; $@"
 }
 function dedxdshell() {
   local servicename=$1; shift

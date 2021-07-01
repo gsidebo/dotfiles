@@ -68,9 +68,11 @@ ffe () { /usr/bin/find . -name '*'"$@" ; }  # ffe:      Find file whose name end
 alias urldecode='python -c "import sys; import urllib.parse; print(urllib.parse.unquote(sys.argv[1]))"'
 alias linebreaktobackslashn='awk ''{printf "%s\\n", $0}'''
 alias uuidgensimple='uuidgen | tr "[:upper:]" "[:lower:]" | sed ''s/\-//g'''
+alias utcnow='python -c "import datetime; print(datetime.datetime.now(tz=datetime.timezone.utc).isoformat())"'
 
 ### git
 export PREFERRED_REMOTE_CONFIG='preferred.remote'
+export GIT_DEFAULT_MAIN_BRANCH="master"
 alias gs="git status"
 alias gss="git status -s"
 alias ga='git add'
@@ -90,12 +92,35 @@ alias gch='git checkout'
 alias gch-='git checkout -'
 alias g-=gch-
 alias gcp='git cherry-pick'
-alias gchmaster='git checkout master && git pull'
+gcustomconfiginit() {
+  local section=$(cat .git/config | grep "[custom]")
+  if [ -z $section ]; then
+    echo "[custom]" >> .git/config
+  fi
+}
+gmainbranch() {
+  gcustomconfiginit
+  local mainbranch=$(git config --local --get custom.mainbranch)
+  if [ -z $mainbranch ]; then
+    echo $GIT_DEFAULT_MAIN_BRANCH
+  else
+    echo $mainbranch
+  fi
+}
+alias gsetmainbranch="git config --local --add custom.mainbranch"
+gchmaster() {
+  local mainbranch=$(gmainbranch)
+  git checkout $mainbranch && git pull
+}
+alias gchmain=ghcmaster
+alias master=gchmaster
 gchfile() {
   local filebranch=''
   local filepath=''
   if (( $# < 2 )); then
-    filebranch="origin/master"
+    local mainbranch=$(gmainbranch)
+    local remote=$(gbranchremote)
+    filebranch="$remote/$mainbranch"
 	  filepath="$1"
   else
   	filebranch="$1"
@@ -103,7 +128,6 @@ gchfile() {
   fi
   git checkout "$filebranch" "$filepath"
 }
-alias master=gchmaster
 alias gpll='git pull'
 alias gpull=gpll
 alias gfetch='git fetch'
@@ -122,7 +146,8 @@ alias gcmtundo='git reset --soft HEAD~'
 alias grecmtpsh='grecmt && gpsh -f'
 alias gpshunsafe='git push'
 gpsh() {
-  [[ $(gcurbranch) == "master" ]] && echo 'Currently on master. Use "gpshunsafe" if you want to push anyway.' || git push $@
+  local mainbranch=$(gmainbranch)
+  [[ $(gcurbranch) == $mainbranch ]] && echo "Currently on $mainbranch. Use 'gpshunsafe' if you want to push anyway." || git push $@
 }
 
 gbranchremotewithname() {
@@ -143,7 +168,9 @@ gbranchremote() {
     echo ""
   fi
 }
-alias gmasterremote='git config "branch.master.remote"'
+gmasterremote() {
+  git config "branch.$(gmainbranch).remote"
+}
 gcurbranchremotewithname() {
   git for-each-ref --format='%(upstream:short)' $(git symbolic-ref -q HEAD)
   ### ALTERNATE ###
@@ -186,7 +213,8 @@ gpshu() {
 }
 alias gdiff='git diff'
 gdiffnames() {
-  local branchcomparedto=${1:-master}
+  local mainbranch=$(gmainbranch)
+  local branchcomparedto=${1:-$mainbranch}
   git diff --name-only $branchcomparedto
 }
 alias gdiffhead='git diff HEAD'
@@ -200,8 +228,10 @@ gdiffn() {
 }
 alias gdiff1='gdiffn 1'
 gdiffmaster() {
-  git diff origin/master.."$(gcurbranch)" $@
+  local mainbranch=$(gmainbranch)
+  git diff origin/$mainbranch.."$(gcurbranch)" $@
 }
+alias gdiffmain=gdiffmaster
 gdiffbranches() {
   if (( $# < 1 )); then
     echo "Need one or two branches as params"
@@ -216,10 +246,11 @@ gdiffbranches() {
   git diff "$branch1".."$branch2" $@
 }
 gdiffbranchfile () {
+  local mainbranch=$(gmainbranch)
   if [ ! -z "$2" ]; then
     branch="$1"; shift
   else
-    branch="master"
+    branch=$mainbranch
   fi
   git diff "$branch" "$1"
 }
@@ -257,10 +288,11 @@ gstashdiff() {
   git stash show -p stash@\{$stashindex\}
 }
 gbranchfile () {
+  local mainbranch=$(gmainbranch)
   if [ ! -z "$2" ]; then
     branch="$1"; shift
   else
-    branch="master"
+    branch=$mainbranch
   fi
   if [ -z "$1" ]; then
     echo "Need to specify file path"
@@ -316,6 +348,7 @@ gbranchdelete() {
 gbranchrename() {
   local branchfrom
   local branchto
+  local mainbranch=$(gmainbranch)
   if (( $# < 1 )); then
     echo "Need one or two branches as params"
     return
@@ -326,8 +359,8 @@ gbranchrename() {
     branchfrom="$1"; shift
     branchto="$1"; shift
   fi
-  if [[ "$branchfrom" == "master" ]]; then
-    echo "Attempting to rename the master branch. You probably don't want that. Exiting..."
+  if [[ "$branchfrom" == $mainbranch ]]; then
+    echo "Attempting to rename the $mainbranch branch. You probably don't want that. Exiting..."
     return
   fi
   local branchremote=$(gbranchremote $branchfrom)
@@ -411,6 +444,8 @@ encodeforurl() {
 echohighlight() {
   echo -e "\033[1;92m$@\e[0m"
 }
+alias coercedoublequote="sed $'s/\'/\\\"/g'"
+alias djangokey='python -c "import secrets; print(secrets.token_urlsafe())"'
 
 # Machine-specific stuff
 if [[ -s "$DEVPATH/dotfiles/.rcsettings" ]]; then
