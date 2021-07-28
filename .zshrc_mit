@@ -36,6 +36,7 @@ export EDX_FICUS_PATH="$DEVPATH/edx_devstack_ficus"
 export EDX_GINKGO_PATH="$DEVPATH/edx_devstack_ginkgo"
 export DEVSTACK_TOOLS_PATH="$DEVPATH/custom_docker/odl_devstack_tools"
 export RAPID_RESPONSE_PATH="$DEVPATH/rapid-response-xblock"
+export MITX_ONLINE_PATH="$DEVPATH/mitxonline"
 export RDEVPATH="$HOME/devreddit"
 export REDDIT_CONF_PATH="$RDEVPATH/reddit-config"
 export REDDIT_PATH="$RDEVPATH/reddit"
@@ -62,6 +63,7 @@ alias cdedxf="cd $EDX_FICUS_PATH"
 alias cdedxg="cd $EDX_GINKGO_PATH"
 alias cdedx=cdedxdock
 alias cdrapid="cd $RAPID_RESPONSE_PATH"
+alias cdmo="cd $MITX_ONLINE_PATH"
 alias cdrdev="cd $RDEVPATH"
 alias cdopdisc="cd $OPDISC_PATH"
 alias cdo=cdopdisc
@@ -201,7 +203,7 @@ gsetapivalues() {
     github_url=$GITHUB_MIT_URL
   else
     github_api_url=$GITHUB_API_URL
-    github_token=$GIT_TOKEN
+    github_token=$GITHUB_SCRIPT_TOKEN
     github_url=$GITHUB_URL
   fi
   remote_tail=$(echo $remote_push_line | perl -nle '/.*github[\.\w]+[\/|:]([^\/]+\/.*)\.git/ && print "$1";')
@@ -218,8 +220,13 @@ gsetapivalues() {
   else
     api_url_stub="$1"; shift
   fi
-  full_url="$github_api_url/$api_url_stub"
-  curl -s -u "$GIT_USERNAME:$github_token" "$full_url" $@
+  first_stub_char=${api_url_stub:0:1}
+  if [[ "$first_stub_char" == "/" ]]; then
+    full_url="$github_api_url$api_url_stub"
+  else
+    full_url="$github_api_url/$api_url_stub"
+  fi
+  curl -s -H "Authorization: token $github_token" "$full_url" $@
 }
 gh_repos_api_call() {
   if (( $# < 1 )); then
@@ -258,8 +265,7 @@ gh_issue_api_call() {
 	  api_url_stub="$api_url_stub$1"
 	fi
   fi
-  curl -s -u "$GIT_USERNAME:$github_token" "$api_url_stub"
-  
+  gh_api_call "$api_url_stub"  
 }
 gh_site_url_base() {
   gsetapivalues
@@ -275,7 +281,7 @@ gcurbranchprinfo() {
   if [ ! -z $1 ]; then
     params="&$1"
   fi
-  curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls?head=$github_owner:$(gcurbranch)$params"
+  gh_api_call "repos/$github_owner/$github_repo/pulls?head=$github_owner:$(gcurbranch)$params"
 }
 gcurbranchprnumber() {
   gcurbranchprinfo | jq '.[0] | .number'
@@ -308,7 +314,7 @@ gopenissue() {
     echo "No issue # specified"
   else
     gsetapivalues
-    curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/issues/$issue" | jq -r '.["html_url"]' | xargs open
+    gh_api_call "repos/$github_owner/$github_repo/issues/$issue" | jq -r '.["html_url"]' | xargs open
   fi
 }
 gopenprissue() {
@@ -333,7 +339,8 @@ gprbranchname() {
     echo "Need PR issue # as param"
     return
   fi
-  curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls/$1" | jq -r '.["head"]["ref"]'
+  gsetapivalues
+  gh_api_call "repos/$github_owner/$github_repo/pulls/$1" | jq -r '.["head"]["ref"]'
 }
 gchprbranch() {
   if [ -z "$1" ]; then
@@ -353,12 +360,12 @@ gprlabelset() {
     label_to_add="$1"
   fi
   if [ -z "$2" ]; then
-    issue_url=$(curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls?head=$github_owner:$(gcurbranch)" | jq -r '.[0]["issue_url"]')
+    issue_url=$(gh_api_call "repos/$github_owner/$github_repo/pulls?head=$github_owner:$(gcurbranch)" | jq -r '.[0]["issue_url"]')
   else
     issue_url="$GITHUB_API_URL/repos/$github_owner/$github_repo/issues/$2"
   fi
   issue_labels_url="$issue_url/labels"
-  curl -s -X PUT -u "$GIT_USERNAME:$GIT_TOKEN" "$issue_labels_url" -H "Content-Type: application/json" -d '["'"$label_to_add"'"]'
+  curl -X PUT "$issue_labels_url" -H "Content-Type: application/json" -H "Authorization: token $github_token" -d '["'"$label_to_add"'"]'
 }
 gprlabelreview() {
   gprlabelset "$GIT_REVIEW_LABEL_NAME" $1
@@ -482,8 +489,8 @@ gprbuildfail() {
   local job_id
 
   gsetapivalues
-  statuses_url=$(curl -s -u "$GIT_USERNAME:$GIT_TOKEN" "$GITHUB_API_URL/repos/$github_owner/$github_repo/pulls/$pr_num" | jq -r '.["statuses_url"]')
-  build_url=$(curl -s -u "$GIT_USERNAME:$GIT_TOKEN" $statuses_url | jq -r '[.[] | {state: .state, target_url: .target_url}] | map(select(.state == "failure")) | .[0]["target_url"]')
+  statuses_url=$(gh_api_call "repos/$github_owner/$github_repo/pulls/$pr_num" | jq -r '.["statuses_url"]')
+  build_url=$(gh_api_call $statuses_url | jq -r '[.[] | {state: .state, target_url: .target_url}] | map(select(.state == "failure")) | .[0]["target_url"]')
   build_id=$(echo $build_url | perl -nle '/\/builds\/([0-9]+)/ && print "$1";')
   # ... get list of id, env for failed jobs for the given build
   failed_job_data=$(curl -s "https://api.travis-ci.org/builds/$build_id" | jq '[.["matrix"][] | {id: .id, config: .config, result: .result}] | map(select(.result == 1)) | [.[] | {id: .id, env: .config.env}]')

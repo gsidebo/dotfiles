@@ -112,7 +112,7 @@ gchmaster() {
   local mainbranch=$(gmainbranch)
   git checkout $mainbranch && git pull
 }
-alias gchmain=ghcmaster
+alias gchmain=gchmaster
 alias master=gchmaster
 gchfile() {
   local filebranch=''
