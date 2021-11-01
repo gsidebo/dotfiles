@@ -215,7 +215,7 @@ alias gdiff='git diff'
 gdiffnames() {
   local mainbranch=$(gmainbranch)
   local branchcomparedto=${1:-$mainbranch}
-  git diff --name-only $branchcomparedto
+  git diff --name-only $branchcomparedto..$(gcurbranch)
 }
 alias gdiffhead='git diff HEAD'
 gdiffn() {

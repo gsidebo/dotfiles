@@ -683,10 +683,12 @@ dockdbswapname() {
   
   local second_backup_exists=$(dockdbexists "$second_backup_db_name")
   if [ $second_backup_exists -eq 1 ]; then
+    echo "Backing up the backup database ($backup_db_name -> $second_backup_db_name)..."
     # Back up the backup
     docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "DROP DATABASE $second_backup_db_name"
     docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "ALTER DATABASE $backup_db_name RENAME TO $second_backup_db_name"
   fi
+  echo "Backing up the main database ($DOCKPGDBNAME -> $backup_db_name) and creating new '$DOCKPGDBNAME' database..."
   docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "ALTER DATABASE $DOCKPGDBNAME RENAME TO $backup_db_name" && \
     docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "CREATE DATABASE $DOCKPGDBNAME" && \
     docker-compose exec db psql -d $DOCKPGTESTDBNAME -U $DOCKPGUSER -c "\\l"
@@ -695,7 +697,7 @@ dockdbunswapname() {
   local backup_db_name=$DOCKPGDBNAME"_bak"
   local second_backup_db_name=$DOCKPGDBNAME"_bak_2"
   
-  local backup_exists=$(dockdbexists "$backup_db_name")
+  local backup_exists=$(dockdbexists "$backup_db_name") 
   if [ $backup_exists -ne 1 ]; then
     echo "Backup database ($backup_db_name) does not exist. Cannot swap. Exiting..."
     return
