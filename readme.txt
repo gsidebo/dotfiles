@@ -1,4 +1,4 @@
-- install prezto (if needed)
+- install zsh & prezto (if needed)
 - move example files (might be a good idea to review the changes in case you've DLed a new version)
   - example_files/init.zsh into ~/.zprezto/
   - example_files/.zpreztorc to ~/.zpreztorc (~/.zpreztorc is a symlink)
