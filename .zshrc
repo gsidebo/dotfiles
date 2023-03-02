@@ -13,7 +13,6 @@ export RCFILE="$HOME/.zshrc"
 alias rcload="source $RCFILE"
 alias rc=rcload
 alias rcedit="vim $RCFILE && source $RCFILE"
-alias rcmachineedit="vim $MYZSHRC && source $MYZSHRC"
 
 # Some pip installs require a C compiler to be aliased to "CC"
 export CC=gcc
@@ -383,13 +382,6 @@ pipreq() {
   pip install -r "$reqfile"
 }
 
-### vagrant
-alias vup="vagrant up"
-alias vssh="vagrant ssh"
-alias vupssh="vagrant up && vagrant ssh"
-alias vhalt="vagrant halt"
-alias vrelprov="vagrant reload && vagrant provision"
-
 ### virtualenv
 venv() {
   cwd=$(pwdtail)
@@ -454,3 +446,4 @@ if [[ -s "$DEVPATH/dotfiles/.rcsettings" ]]; then
     source "$MYZSHRC"
   fi
 fi
+alias rcmachineedit="vim $MYZSHRC && source $MYZSHRC"

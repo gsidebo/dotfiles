@@ -1,0 +1,25 @@
+export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" # This loads nvm
+export PYENV_ROOT="$HOME/.pyenv"
+export PATH="$PYENV_ROOT/bin:/usr/local/go/bin:$PATH"
+
+export RC_PATH="$HOME/.edgerc"
+
+eval "$(pyenv init --path)"
+eval "$(pyenv init -)"
+eval "$(pyenv virtualenv-init -)"
+
+export WIN="/mnt/c"
+export WINME="$WIN/Users/gsidebot"
+
+export DOTFILES_PATH="$DEVPATH/dotfiles"
+alias cddot="cd $DOTFILES_PATH"
+alias myrcedit="vim $MYZSHRC"
+alias myrc=myrcedit
+
+alias openwin="explorer.exe ."
+alias hosts="cat /etc/hosts"
+alias hostsync="sudo cp /mnt/c/Windows/System32/drivers/etc/hosts /etc/hosts"
+alias edgerc="vim ~/.edgerc"
+
+alias ssh-agent-start="eval `ssh-agent -s`"
