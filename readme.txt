@@ -4,6 +4,5 @@
   - example_files/.zpreztorc to ~/.zpreztorc (~/.zpreztorc is a symlink)
 - for machine-specific config, create .rcsettings
   - export a MYZSHRC variable pointing to local rc file path
-- copy example_files/.zshrc to ~/.zshrc
-  - change devpath (if needed)
+- copy example_files/.zshrc to ~/.zshrc (or copy contents to bottom of file)
   - source GIT_USERNAME and GIT_TOKEN (if needed)

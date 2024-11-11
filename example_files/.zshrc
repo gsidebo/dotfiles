@@ -6,6 +6,6 @@ fi
 # Set path to dev directory where dotfiles directory should exist
 export DEVPATH="$HOME/dev"
 
-if [[ -s "$DEVPATH/dotfiles/.zshrc" ]]; then
-  source "$DEVPATH/dotfiles/.zshrc"
+if [[ -s "$DEVPATH/dotfiles/.zshrc_all" ]]; then
+  source "$DEVPATH/dotfiles/.zshrc_all"
 fi
