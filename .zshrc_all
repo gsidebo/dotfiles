@@ -10,9 +10,11 @@ setnoclobber
 unsetopt AUTO_CD
 
 export RCFILE="$HOME/.zshrc"
-alias rcload="source $RCFILE"
+# alias rcload="source $RCFILE"
+alias rcload="exec zsh"
+alias reload=rcload
 alias rc=rcload
-alias rcedit="vim $RCFILE && source $RCFILE"
+alias rcedit="vim $RCFILE && rcload"
 
 # Some pip installs require a C compiler to be aliased to "CC"
 export CC=gcc
