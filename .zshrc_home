@@ -1,4 +1,4 @@
-PATH="$HOME/bin:${PATH}"
-export LD_LIBRARY_PATH="$HOME/thirdparty/ffmpeg_build/lib/:$LD_LIBRARY_PATH"
+PATH="$HOME/bin:$HOME/.local/bin:${PATH}"
+# export LD_LIBRARY_PATH="$HOME/thirdparty/ffmpeg_build/lib/:$LD_LIBRARY_PATH"
 # Remove duplicates from PATH
 PATH=$(echo "$PATH" | awk -v RS=':' -v ORS=":" '!a[$1]++' | sed 's/:$//' | tr -d '\n')
